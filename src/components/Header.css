@@ -1,0 +1,171 @@
+.header {
+  width: 100%;
+  height: 60px;
+  background-color: #dddddd;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.header-container {
+  max-width: 1512px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 48px;
+}
+
+.header-logo {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 32px;
+  line-height: 20px;
+  color: #666666;
+  text-decoration: none;
+  letter-spacing: 2.8px;
+  text-transform: uppercase;
+}
+
+.header-nav {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+  max-width: 683px;
+}
+
+.nav-link {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 16px;
+  color: #b3b3b3;
+  text-decoration: none;
+  padding: 0 20px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: #cccccc;
+}
+
+.nav-link.active {
+  color: #666666;
+}
+
+.header-signin {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.signin-button {
+  background: transparent;
+  border: 1px solid #b3b3b3;
+  height: 34px;
+  padding: 0 21px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 16px;
+  color: #666666;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.signin-button:hover {
+  background-color: #b3b3b3;
+  color: #1e1e1e;
+}
+
+@media (max-width: 1200px) {
+  .header-container {
+    padding: 0 24px;
+  }
+
+  .header-nav {
+    gap: 12px;
+  }
+
+  .nav-link {
+    font-size: 16px;
+    padding: 0 12px;
+  }
+
+  .header-logo {
+    font-size: 24px;
+  }
+
+  .signin-button {
+    font-size: 16px;
+    padding: 0 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-container {
+    padding: 0 16px;
+  }
+
+  .header-nav {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .nav-link {
+    font-size: 12px;
+    padding: 0 8px;
+    height: 28px;
+  }
+
+  .header-logo {
+    font-size: 18px;
+    letter-spacing: 1.5px;
+  }
+
+  .signin-button {
+    font-size: 12px;
+    padding: 0 12px;
+    height: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    height: auto;
+    min-height: 60px;
+    padding: 8px 0;
+  }
+
+  .header-container {
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .header-nav {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .header-signin {
+    width: 100%;
+    justify-content: center;
+  }
+}
