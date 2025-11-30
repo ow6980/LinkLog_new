@@ -9,13 +9,15 @@
 }
 
 .header-container {
-  max-width: 1512px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 48px;
+  box-sizing: border-box;
 }
 
 .header-logo {
@@ -33,9 +35,10 @@
   display: flex;
   gap: 20px;
   align-items: center;
-  flex: 1;
   justify-content: center;
-  max-width: 683px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .nav-link {
@@ -124,8 +127,9 @@
 
   .header-nav {
     gap: 8px;
+    position: static;
+    transform: none;
     flex-wrap: wrap;
-    justify-content: flex-start;
   }
 
   .nav-link {
@@ -162,10 +166,18 @@
   .header-nav {
     width: 100%;
     justify-content: center;
+    order: 2;
   }
 
   .header-signin {
     width: 100%;
     justify-content: center;
+    order: 3;
+  }
+
+  .header-logo {
+    order: 1;
+    width: 100%;
+    text-align: center;
   }
 }

@@ -1,41 +1,53 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
 import './MainPage.css'
-
-interface Idea {
-  id: string
-  title: string
-  content: string
-  keywords: string[]
-  createdAt: string
-}
 
 const MainPage = () => {
   const [ideaInput, setIdeaInput] = useState('')
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
-  const [recentIdeas, setRecentIdeas] = useState<Idea[]>([])
-  const navigate = useNavigate()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // 키워드 자동 추출
+  // 키워드 자동 추출 (NLP 기반 기본 키워드 분석)
   const extractKeywords = (text: string): string[] => {
     if (!text.trim()) return []
 
-    const words = text
-      .toLowerCase()
+    // 불용어 제거 (영어/한국어 공통)
+    const stopWords = new Set([
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+      'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
+      'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should',
+      'could', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those',
+      'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
+      '이', '가', '을', '를', '에', '의', '와', '과', '도', '로', '으로', '에서',
+      '그', '이', '저', '것', '수', '것', '때', '곳', '등', '및', '또한', '그리고'
+    ])
+
+    // 원본 단어를 유지하기 위해 원본 텍스트에서 단어 추출
+    const originalWords = text
       .replace(/[^\w\s가-힣]/g, ' ')
       .split(/\s+/)
       .filter((word) => word.length > 2)
 
-    const wordCount: Record<string, number> = {}
-    words.forEach((word) => {
-      wordCount[word] = (wordCount[word] || 0) + 1
+    // 소문자로 변환한 단어로 빈도 계산
+    const wordCount: Record<string, { count: number; original: string }> = {}
+    originalWords.forEach((originalWord) => {
+      const lowerWord = originalWord.toLowerCase()
+      if (!stopWords.has(lowerWord)) {
+        if (!wordCount[lowerWord]) {
+          wordCount[lowerWord] = { count: 0, original: originalWord }
+        }
+        wordCount[lowerWord].count += 1
+        // 원본 단어의 첫 글자가 대문자면 원본 유지
+        if (originalWord[0] === originalWord[0].toUpperCase() && originalWord[0] !== originalWord[0].toLowerCase()) {
+          wordCount[lowerWord].original = originalWord
+        }
+      }
     })
 
     return Object.entries(wordCount)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => b[1].count - a[1].count)
       .slice(0, 6)
-      .map(([word]) => word)
+      .map(([_, data]) => data.original)
       .filter((word) => !selectedKeywords.includes(word))
   }
 
@@ -48,13 +60,14 @@ const MainPage = () => {
     }
   }, [ideaInput, selectedKeywords])
 
+  // textarea 높이 자동 조절
   useEffect(() => {
-    const stored = localStorage.getItem('ideas')
-    if (stored) {
-      const ideas = JSON.parse(stored) as Idea[]
-      setRecentIdeas(ideas.slice(0, 10))
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
     }
-  }, [])
+  }, [ideaInput])
+
 
   const handleKeywordSelect = (keyword: string) => {
     if (!selectedKeywords.includes(keyword)) {
@@ -74,7 +87,7 @@ const MainPage = () => {
       return
     }
 
-    const newIdea: Idea = {
+    const newIdea = {
       id: Date.now().toString(),
       title: ideaInput.split('\n')[0].substring(0, 50),
       content: ideaInput,
@@ -84,10 +97,9 @@ const MainPage = () => {
 
     const existingIdeas = JSON.parse(
       localStorage.getItem('ideas') || '[]'
-    ) as Idea[]
+    )
     const updatedIdeas = [newIdea, ...existingIdeas]
     localStorage.setItem('ideas', JSON.stringify(updatedIdeas))
-    setRecentIdeas(updatedIdeas.slice(0, 10))
 
     setIdeaInput('')
     setSelectedKeywords([])
@@ -95,7 +107,7 @@ const MainPage = () => {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       const form = e.currentTarget.closest('form')
       if (form) {
@@ -133,12 +145,13 @@ const MainPage = () => {
               )}
               <div className="text-area-wrapper">
                 <textarea
+                  ref={textareaRef}
                   className="idea-textarea"
                   value={ideaInput}
                   onChange={(e) => setIdeaInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Enter a new idea, thought, or concept..."
-                  rows={3}
+                  rows={1}
                 />
               </div>
             </div>
@@ -160,47 +173,7 @@ const MainPage = () => {
                 </div>
               </div>
             )}
-            <button type="submit" className="submit-button">
-              SAVE
-            </button>
           </form>
-        </div>
-
-        <div className="recent-ideas-section">
-          <h2 className="section-title">Recent Ideas</h2>
-          <div className="ideas-grid">
-            {recentIdeas.length > 0 ? (
-              recentIdeas.map((idea) => (
-                <div
-                  key={idea.id}
-                  className="idea-card"
-                  onClick={() => navigate(`/idea/${idea.id}`)}
-                >
-                  <h3 className="idea-card-title">{idea.title}</h3>
-                  <p className="idea-card-content">
-                    {idea.content.substring(0, 100)}
-                    {idea.content.length > 100 ? '...' : ''}
-                  </p>
-                  {idea.keywords.length > 0 && (
-                    <div className="idea-card-keywords">
-                      {idea.keywords.slice(0, 3).map((keyword, idx) => (
-                        <span key={idx} className="keyword-tag-small">
-                          {keyword}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="idea-card-date">
-                    {new Date(idea.createdAt).toLocaleDateString('ko-KR')}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">
-                <p>아직 저장된 아이디어가 없습니다.</p>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
