@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import variablesData from '../variables.json'
 import './BookmarkPage.css'
 
@@ -62,12 +63,18 @@ interface Idea {
 }
 
 const BookmarkPage = () => {
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [filteredIdeas, setFilteredIdeas] = useState<Idea[]>([])
   const [filter, setFilter] = useState<string>('all')
-  const navigate = useNavigate()
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/signin')
+      return
+    }
+
     const stored = localStorage.getItem('ideas')
     if (stored) {
       const allIdeas = JSON.parse(stored) as Idea[]

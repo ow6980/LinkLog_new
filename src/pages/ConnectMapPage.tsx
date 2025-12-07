@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import mockIdeas from '../mockData/ideas.json'
 import variablesData from '../variables.json'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
@@ -125,6 +126,7 @@ const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
 
 const ConnectMapPage = () => {
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [ideas, setIdeas] = useState<Idea[]>([])
@@ -278,6 +280,11 @@ const ConnectMapPage = () => {
 
   // 아이디어 로드 (localStorage와 mock 데이터 병합)
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/signin')
+      return
+    }
+
     const stored = localStorage.getItem('ideas')
     let storedIdeas: Idea[] = []
     

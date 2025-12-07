@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import * as d3 from 'd3'
 import './InsightPage.css'
 import { format, subWeeks, startOfWeek } from 'date-fns'
@@ -11,6 +13,8 @@ interface Idea {
 }
 
 const InsightPage = () => {
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const keywordChartRef = useRef<SVGSVGElement>(null)
   const weeklyChartRef = useRef<SVGSVGElement>(null)
   const [ideas, setIdeas] = useState<Idea[]>([])
@@ -22,6 +26,11 @@ const InsightPage = () => {
   >([])
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/signin')
+      return
+    }
+
     const stored = localStorage.getItem('ideas')
     if (stored) {
       const loadedIdeas = JSON.parse(stored) as Idea[]

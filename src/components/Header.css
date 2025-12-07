@@ -72,6 +72,26 @@
   gap: 20px;
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.user-email {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 16px;
+  color: #666666;
+}
+
+.signin-button-link {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+}
+
 .signin-button {
   background-color: #dddddd;
   border: 1px solid #949494;
@@ -81,7 +101,7 @@
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
-  color: #444444;
+  color: #666666;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   cursor: pointer;
@@ -93,8 +113,8 @@
 
 .signin-button:hover {
   background-color: #cccccc;
-  border-color: #444444;
-  color: #444444;
+  border-color: #666666;
+  color: #666666;
 }
 
 @media (max-width: 1200px) {

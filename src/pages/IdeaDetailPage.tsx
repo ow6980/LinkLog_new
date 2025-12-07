@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import './IdeaDetailPage.css'
 
 interface Idea {
@@ -15,6 +16,7 @@ interface Idea {
 const IdeaDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const [idea, setIdea] = useState<Idea | null>(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -24,6 +26,11 @@ const IdeaDetailPage = () => {
   const [isBookmarked, setIsBookmarked] = useState(false)
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/signin')
+      return
+    }
+
     const stored = localStorage.getItem('ideas')
     if (stored && id) {
       const ideas = JSON.parse(stored) as Idea[]
@@ -37,7 +44,7 @@ const IdeaDetailPage = () => {
         setIsBookmarked(found.bookmarked || false)
       }
     }
-  }, [id])
+  }, [id, isAuthenticated, navigate])
 
   const handleSave = () => {
     if (!id) return

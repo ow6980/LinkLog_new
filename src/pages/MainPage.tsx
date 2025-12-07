@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import './MainPage.css'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
 
 const MainPage = () => {
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const [ideaInput, setIdeaInput] = useState('')
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
@@ -99,6 +101,11 @@ const MainPage = () => {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
+    if (!isAuthenticated) {
+      navigate('/signin')
+      return
+    }
 
     if (!ideaInput.trim()) {
       return

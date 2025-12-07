@@ -1,13 +1,26 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import './Header.css'
 
 const Header = () => {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { isAuthenticated, user, logout } = useAuth()
 
   const isActive = (path: string) => {
     if (path === '/' && location.pathname === '/') return true
     if (path !== '/' && location.pathname.startsWith(path)) return true
     return false
+  }
+
+  const handleSignInClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    navigate('/signin')
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate('/')
   }
 
   return (
@@ -17,12 +30,6 @@ const Header = () => {
           LINK:LOG
         </Link>
         <nav className="header-nav">
-          <Link
-            to="/"
-            className={`nav-link ${isActive('/') && location.pathname === '/' ? 'active' : ''}`}
-          >
-            MAIN
-          </Link>
           <Link
             to="/connect-map"
             className={`nav-link ${isActive('/connect-map') ? 'active' : ''}`}
@@ -43,7 +50,18 @@ const Header = () => {
           </Link>
         </nav>
         <div className="header-signin">
-          <button className="signin-button">SIGN IN</button>
+          {isAuthenticated ? (
+            <div className="user-info">
+              <span className="user-email">{user?.username || user?.email}</span>
+              <button className="signin-button" onClick={handleLogout}>
+                SIGN OUT
+              </button>
+            </div>
+          ) : (
+            <Link to="/signin" className="signin-button-link">
+              <button className="signin-button">SIGN IN</button>
+            </Link>
+          )}
         </div>
       </div>
     </header>
