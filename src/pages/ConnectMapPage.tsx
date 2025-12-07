@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import mockIdeas from '../mockData/ideas.json'
 import variablesData from '../variables.json'
+import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
 import './ConnectMapPage.css'
 
 // variables.json에서 색상 추출 (RGB를 HEX로 변환)
@@ -140,23 +141,173 @@ const ConnectMapPage = () => {
   const [dragMode, setDragMode] = useState<'rotate' | 'pan'>('rotate') // 드래그 모드
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, rotationX: 0, rotationY: 0, transformX: 0, transformY: 0 })
   const [animationFrame, setAnimationFrame] = useState(0) // 애니메이션 프레임
+  
+  // Add Idea 모달 상태
+  const [isAddIdeaModalOpen, setIsAddIdeaModalOpen] = useState(false)
+  const [ideaInput, setIdeaInput] = useState('')
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
+  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
+  const ideaTextareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // 아이디어 로드 (localStorage 우선, 없으면 mock 데이터 사용)
+  // 키워드 추출 함수 (MainPage와 동일)
+  const extractKeywords = useCallback((text: string): string[] => {
+    if (!text.trim()) return []
+
+    const textLower = text.toLowerCase()
+    const keywordScores: Array<{ keyword: string; score: number }> = []
+
+    AVAILABLE_KEYWORDS.forEach(keyword => {
+      if (selectedKeywords.includes(keyword)) return
+
+      const keywordLower = keyword.toLowerCase()
+      let score = 0
+
+      const exactMatches = (textLower.match(new RegExp(`\\b${keywordLower}\\b`, 'gi')) || []).length
+      score += exactMatches * 10
+
+      const relatedWords: Record<string, string[]> = {
+        'technology': ['tech', 'technical', 'technological', 'software', 'hardware', 'system', 'platform', 'application', 'algorithm', 'computing', 'digital', 'electronic', 'ai', 'ml', 'iot', 'cloud'],
+        'innovation': ['innovative', 'innovate', 'novel', 'new', 'breakthrough', 'revolutionary', 'disruptive', 'creative', 'original', 'pioneering'],
+        'data': ['dataset', 'database', 'analytics', 'analysis', 'information', 'dataset', 'processing', 'mining', 'collection', 'storage'],
+        'design': ['designing', 'designed', 'architecture', 'structure', 'layout', 'interface', 'ui', 'ux', 'user experience', 'visual'],
+        'business': ['business', 'commercial', 'enterprise', 'company', 'organization', 'market', 'customer', 'client', 'revenue', 'profit'],
+        'research': ['research', 'study', 'investigation', 'experiment', 'academic', 'scientific', 'analysis', 'findings', 'discovery'],
+        'development': ['develop', 'developing', 'building', 'creating', 'construction', 'implementation', 'programming', 'coding', 'engineering']
+      }
+
+      if (relatedWords[keywordLower]) {
+        relatedWords[keywordLower].forEach(word => {
+          const regex = new RegExp(`\\b${word}\\b`, 'gi')
+          const matches = textLower.match(regex)
+          if (matches) {
+            score += matches.length * 3
+          }
+        })
+      }
+
+      const firstSentence = text.split(/[.!?。！？\n]/)[0]?.toLowerCase() || ''
+      if (firstSentence.includes(keywordLower)) {
+        score += 5
+      }
+
+      if (score > 0) {
+        keywordScores.push({ keyword, score })
+      }
+    })
+
+    return keywordScores
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 7)
+      .map(item => item.keyword)
+      .filter(k => k && !selectedKeywords.includes(k))
+  }, [selectedKeywords])
+
+  // 키워드 추출 useEffect
+  useEffect(() => {
+    if (ideaInput && isAddIdeaModalOpen) {
+      const extracted = extractKeywords(ideaInput)
+      setSuggestedKeywords(extracted)
+    } else {
+      setSuggestedKeywords([])
+    }
+  }, [ideaInput, selectedKeywords, extractKeywords, isAddIdeaModalOpen])
+
+  // textarea 높이 자동 조절
+  useEffect(() => {
+    if (ideaTextareaRef.current) {
+      ideaTextareaRef.current.style.height = 'auto'
+      ideaTextareaRef.current.style.height = `${ideaTextareaRef.current.scrollHeight}px`
+    }
+  }, [ideaInput])
+
+  const handleKeywordSelect = (keyword: string) => {
+    if (!selectedKeywords.includes(keyword) && selectedKeywords.length < 2) {
+      setSelectedKeywords([...selectedKeywords, keyword])
+      setSuggestedKeywords(suggestedKeywords.filter((k: string) => k !== keyword))
+    }
+  }
+
+  const handleKeywordRemove = (keyword: string) => {
+    setSelectedKeywords(selectedKeywords.filter((k: string) => k !== keyword))
+  }
+
+  const handleOpenAddIdeaModal = () => {
+    setIsAddIdeaModalOpen(true)
+  }
+
+  const handleCloseAddIdeaModal = () => {
+    setIsAddIdeaModalOpen(false)
+    setIdeaInput('')
+    setSelectedKeywords([])
+    setSuggestedKeywords([])
+  }
+
+  const handleAddIdeaSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!ideaInput.trim()) {
+      return
+    }
+
+    const newIdea: Idea = {
+      id: Date.now().toString(),
+      title: ideaInput.split('\n')[0].substring(0, 50),
+      content: ideaInput,
+      keywords: selectedKeywords.length > 0 ? selectedKeywords : [],
+      createdAt: new Date().toISOString(),
+      bookmarked: false,
+    }
+
+    // 현재 ideas 상태를 직접 사용하여 업데이트
+    const updatedIdeas = [newIdea, ...ideas]
+    localStorage.setItem('ideas', JSON.stringify(updatedIdeas))
+    
+    // 상태 업데이트 후 모달 닫기
+    setIdeas(updatedIdeas)
+    handleCloseAddIdeaModal()
+  }
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (!e.shiftKey) {
+        handleAddIdeaSubmit(e as any)
+      }
+    }
+  }
+
+  // 아이디어 로드 (localStorage와 mock 데이터 병합)
   useEffect(() => {
     const stored = localStorage.getItem('ideas')
-    if (stored && stored !== '[]') {
+    let storedIdeas: Idea[] = []
+    
+    if (stored && stored !== '[]' && stored.trim() !== '[]') {
       try {
-      const loadedIdeas = JSON.parse(stored) as Idea[]
-        if (loadedIdeas.length > 0) {
-      setIdeas(loadedIdeas)
-          return
+        const parsed = JSON.parse(stored) as Idea[]
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          storedIdeas = parsed
         }
       } catch (e) {
         console.error('Error parsing localStorage ideas:', e)
       }
     }
-    // Mock 데이터 사용
-    setIdeas(mockIdeas as Idea[])
+    
+    // mock 데이터와 localStorage 데이터 병합 (중복 제거)
+    const mockData = mockIdeas as Idea[]
+    const mockIds = new Set(mockData.map(idea => idea.id))
+    
+    // localStorage에 있는 아이디어 중 mock 데이터에 없는 것만 필터링
+    const userAddedIdeas = storedIdeas.filter(idea => !mockIds.has(idea.id))
+    
+    // mock 데이터 + 사용자가 추가한 아이디어
+    const allIdeas = [...mockData, ...userAddedIdeas]
+    
+    setIdeas(allIdeas)
+    
+    // localStorage에도 병합된 데이터 저장
+    if (allIdeas.length > 0) {
+      localStorage.setItem('ideas', JSON.stringify(allIdeas))
+    }
   }, [])
 
   // 키워드 그룹 생성 및 3D 배치
@@ -1492,7 +1643,7 @@ const ConnectMapPage = () => {
       </div>
 
         {/* Add New Idea 버튼 */}
-        <button className="add-idea-btn" onClick={() => navigate('/')}>
+        <button className="add-idea-btn" onClick={handleOpenAddIdeaModal}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" />
           </svg>
@@ -1521,6 +1672,73 @@ const ConnectMapPage = () => {
           >
             View Details
           </button>
+        </div>
+      )}
+
+      {/* Add Idea Modal */}
+      {isAddIdeaModalOpen && (
+        <div className="add-idea-modal-backdrop" onClick={handleCloseAddIdeaModal}>
+          <div className="add-idea-modal" onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleAddIdeaSubmit} className="add-idea-form">
+              <div className="idea-input-area">
+                {selectedKeywords.length > 0 && (
+                  <div className="selected-keywords-row">
+                    {selectedKeywords.map((keyword, index) => (
+                      <div key={index} className="selected-keyword-tag">
+                        <span>{keyword}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleKeywordRemove(keyword)}
+                          className="keyword-remove-btn"
+                        >
+                          x
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="idea-textarea-wrapper">
+                  <div className="idea-textarea-input">
+                    <textarea
+                      ref={ideaTextareaRef}
+                      className="idea-textarea"
+                      value={ideaInput}
+                      onChange={(e) => setIdeaInput(e.target.value)}
+                      onKeyDown={handleTextareaKeyDown}
+                      placeholder="Enter a new idea, thought, or concept..."
+                      rows={1}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="idea-submit-btn"
+                    onClick={handleAddIdeaSubmit}
+                  >
+                    <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="42" height="42" fill="#1e1e1e"/>
+                      <path d="M17 14L26 21L17 28" stroke="#dddddd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>{suggestedKeywords.length > 0 && (
+                <div className="suggested-keywords-section">
+                  <div className="suggested-keywords-label">Suggested Keywords</div>
+                  <div className="suggested-keywords-row">
+                    {suggestedKeywords.map((keyword, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="suggested-keyword-tag"
+                        onClick={() => handleKeywordSelect(keyword)}
+                      >
+                        {keyword}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </form>
+          </div>
         </div>
       )}
     </div>
