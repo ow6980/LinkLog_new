@@ -1528,7 +1528,8 @@ const ConnectMapPage = () => {
 
               // 키워드 태그와 동일한 scale 범위 사용 (텍스트 선명도 유지)
               const baseScale = Math.max(1.0, Math.min(1.5, nodeProjected.scale))
-              const hoverScale = isHovered ? 1.05 : 1
+              const isSelected = selectedIdea?.id === node.id
+              const hoverScale = (isHovered || isSelected) ? 1.05 : 1
               const finalScale = baseScale * hoverScale
               
               // 그라데이션 테두리를 위한 색상
@@ -1539,24 +1540,37 @@ const ConnectMapPage = () => {
               return (
                 <div
                   key={`idea-${node.id}`}
-                  className={`idea-node-wrapper ${isHovered ? 'hovered' : ''}`}
+                  className={`idea-node-wrapper ${isHovered ? 'hovered' : ''} ${selectedIdea?.id === node.id ? 'selected' : ''}`}
                   style={{
                     position: 'absolute',
                     left: `${nodeProjected.x}px`,
                     top: `${nodeProjected.y + floatOffset}px`,
-                    transform: `translate(-50%, -50%) scale(${finalScale})`,
+                    transform: `translate(-50%, -50%) translateZ(0) scale(${finalScale})`,
                     transformOrigin: 'center center',
-                    zIndex: isHovered ? 10000 : Math.floor(nodeProjected.z * 10) + 100, // 더 세밀한 z-index 계산
+                    zIndex: (isHovered || selectedIdea?.id === node.id) ? 10000 : Math.floor(nodeProjected.z * 10) + 100, // 더 세밀한 z-index 계산
                     willChange: isDragging ? 'transform, left, top' : 'auto',
                     pointerEvents: 'auto',
                     transition: isDragging ? 'none' : 'transform 0.15s ease-out, box-shadow 0.15s ease',
-                    // 텍스트 선명도 개선 - scale이 1.0 이상일 때도 선명하게
+                    // 텍스트 선명도 개선 - GPU 가속 및 렌더링 최적화
                     WebkitFontSmoothing: 'antialiased',
                     MozOsxFontSmoothing: 'grayscale',
+                    transformStyle: 'preserve-3d',
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
                   }}
                   onMouseEnter={() => !isDragging && setHoveredIdea(node.id)}
-                  onMouseLeave={() => setHoveredIdea(null)}
-                  onClick={() => !isDragging && navigate(`/idea/${node.id}`)}
+                  onMouseLeave={() => {
+                    // 선택된 노드는 hover 상태를 유지
+                    if (selectedIdea?.id !== node.id) {
+                      setHoveredIdea(null)
+                    }
+                  }}
+                  onClick={() => {
+                    if (!isDragging) {
+                      setSelectedIdea(node)
+                      setHoveredIdea(node.id) // 선택된 노드는 hover 상태 유지
+                    }
+                  }}
                 >
                   {useGradient ? (
                     // 그라데이션 테두리: 외부 div에 그라데이션 배경, 내부 div로 테두리 효과
@@ -1569,7 +1583,7 @@ const ConnectMapPage = () => {
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: isHovered 
+                        boxShadow: (isHovered || selectedIdea?.id === node.id)
                           ? `0px 0px 10px rgba(0, 0, 0, 0.4), 0 0 20px ${primaryColor}60`
                           : `0px 0px 10px rgba(0, 0, 0, 0.25)`,
                         boxSizing: 'border-box',
@@ -1586,9 +1600,20 @@ const ConnectMapPage = () => {
                           border: 'none',
                           padding: '2px 22px',
                           boxSizing: 'border-box',
+                          filter: 'blur(0)',
+                          WebkitFontSmoothing: 'antialiased',
+                          MozOsxFontSmoothing: 'grayscale',
                         }}
                       >
-                        <span className="idea-node-text">{node.title}</span>
+                        <span 
+                          className="idea-node-text"
+                          style={{
+                            transform: `scale(${1 / finalScale})`,
+                            display: 'inline-block',
+                          }}
+                        >
+                          {node.title}
+                        </span>
                       </div>
                     </div>
                   ) : (
@@ -1602,17 +1627,28 @@ const ConnectMapPage = () => {
                         height: `${nodeHeight}px`,
                         fontSize: `${nodeFontSize}px`,
                         width: nodeWidth,
-                        boxShadow: isHovered 
+                        boxShadow: (isHovered || selectedIdea?.id === node.id)
                           ? `0px 0px 10px rgba(0, 0, 0, 0.4), 0 0 20px ${primaryColor}60`
                           : `0px 0px 10px rgba(0, 0, 0, 0.25)`,
+                        filter: 'blur(0)',
+                        WebkitFontSmoothing: 'antialiased',
+                        MozOsxFontSmoothing: 'grayscale',
                       }}
                     >
-                      <span className="idea-node-text">{node.title}</span>
+                      <span 
+                        className="idea-node-text"
+                        style={{
+                          transform: `scale(${1 / finalScale})`,
+                          display: 'inline-block',
+                        }}
+                      >
+                        {node.title}
+                      </span>
                     </div>
-                  )}
-                </div>
-              )
-            })}
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* 컨트롤 버튼 */}
@@ -1651,27 +1687,133 @@ const ConnectMapPage = () => {
         </button>
       </div>
 
-      {/* 사이드 패널 */}
+      {/* Node Detail Panel */}
       {selectedIdea && (
-        <div className="side-panel">
-          <button className="close-button" onClick={() => setSelectedIdea(null)}>
-            ×
-          </button>
-          <h3>{selectedIdea.title}</h3>
-          <p>{selectedIdea.content}</p>
-          <div className="keywords-panel">
-            {selectedIdea.keywords.map((keyword, idx) => (
-              <span key={idx} className="keyword-tag-small" style={{ backgroundColor: KEYWORD_COLORS[keyword] || '#666666' }}>
-                {keyword}
-              </span>
-            ))}
-          </div>
+        <div className="node-detail-panel-backdrop" onClick={() => setSelectedIdea(null)}>
+          <div className="node-detail-panel" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="node-detail-header">
+              <h2 className="node-detail-title">IDEA DETAIL</h2>
           <button
-            className="view-detail-btn"
-            onClick={() => navigate(`/idea/${selectedIdea.id}`)}
-          >
-            View Details
+                className="node-detail-bookmark-btn" 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const updatedIdeas = ideas.map(idea => 
+                    idea.id === selectedIdea.id 
+                      ? { ...idea, bookmarked: !idea.bookmarked }
+                      : idea
+                  )
+                  setIdeas(updatedIdeas)
+                  localStorage.setItem('ideas', JSON.stringify(updatedIdeas))
+                  setSelectedIdea(updatedIdeas.find(i => i.id === selectedIdea.id) || null)
+                }}
+              >
+                {selectedIdea.bookmarked ? (
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.1666 24.5L13.9999 19.8333L5.83325 24.5V5.83333C5.83325 5.21449 6.07908 4.621 6.51667 4.18342C6.95425 3.74583 7.54775 3.5 8.16659 3.5H19.8333C20.4521 3.5 21.0456 3.74583 21.4832 4.18342C21.9208 4.621 22.1666 5.21449 22.1666 5.83333V24.5Z" stroke="#1E1E1E" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10.5 11.6667L12.8333 14L17.5 9.33333" stroke="#1E1E1E" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                ) : (
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.1666 24.5L13.9999 19.8333L5.83325 24.5V5.83333C5.83325 5.21449 6.07908 4.621 6.51667 4.18342C6.95425 3.74583 7.54775 3.5 8.16659 3.5H19.8333C20.4521 3.5 21.0456 3.74583 21.4832 4.18342C21.9208 4.621 22.1666 5.21449 22.1666 5.83333V24.5Z" stroke="#1E1E1E" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
           </button>
+            </div>
+
+            {/* Idea Content */}
+            <div className="node-detail-section">
+              <h3 className="node-detail-section-title">Idea content</h3>
+              <p className="node-detail-content-text">{selectedIdea.content || selectedIdea.title}</p>
+            </div>
+
+            {/* Keywords */}
+            <div className="node-detail-section">
+              <h3 className="node-detail-section-title">keywords</h3>
+              <div className="node-detail-keywords">
+            {selectedIdea.keywords.map((keyword, idx) => (
+                  <div 
+                    key={idx} 
+                    className="node-detail-keyword-tag"
+                    style={{ backgroundColor: KEYWORD_COLORS[keyword] || '#666666' }}
+                  >
+                {keyword}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Meta Data */}
+            <div className="node-detail-section">
+              <h3 className="node-detail-section-title">meta data</h3>
+              <div className="node-detail-metadata">
+                <div className="node-detail-metadata-row">
+                  <span>Updated Time</span>
+                  <span>
+                    {selectedIdea.createdAt 
+                      ? new Date(selectedIdea.createdAt).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        }).replace(/(\d+)\/(\d+)\/(\d+), (.+)/, '$3. $1. $2.  |  $4')
+                      : 'N/A'
+                    }
+              </span>
+                </div>
+                <div className="node-detail-metadata-row">
+                  <span>Connected</span>
+                  <span>
+                    {connections.filter(c => 
+                      c.source.id === selectedIdea.id || c.target.id === selectedIdea.id
+                    ).length} Ideas
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Connected Ideas */}
+            {(() => {
+              const connectedIdeas = connections
+                .filter(c => c.source.id === selectedIdea.id || c.target.id === selectedIdea.id)
+                .map(c => c.source.id === selectedIdea.id ? c.target : c.source)
+                .filter((idea, index, self) => self.findIndex(i => i.id === idea.id) === index)
+                .slice(0, 3) // 최대 3개만 표시
+              
+              return connectedIdeas.length > 0 && (
+                <div className="node-detail-section">
+                  <h3 className="node-detail-section-title">connected idea</h3>
+                  <div className="node-detail-connected-ideas">
+                    {connectedIdeas.map((idea) => {
+                      const ideaKeyword = idea.keywords[0] || 'Technology'
+                      return (
+                        <div key={idea.id} className="node-detail-connected-idea-item">
+                          <div 
+                            className="node-detail-connected-idea-dot"
+                            style={{ backgroundColor: KEYWORD_COLORS[ideaKeyword] || '#666666' }}
+                          />
+                          <p className="node-detail-connected-idea-text">{idea.title}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* View Detail Button */}
+            <button
+              className="node-detail-view-btn"
+              onClick={() => {
+                navigate(`/idea/${selectedIdea.id}`)
+                setSelectedIdea(null)
+              }}
+            >
+              view detail
+            </button>
+          </div>
         </div>
       )}
 
