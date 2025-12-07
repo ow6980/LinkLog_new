@@ -11,17 +11,17 @@
 
 ✔ P1 Main
 
- [] 아이디어 입력 가능
+ [x] 아이디어 입력 가능
 
  [] 빈 값 입력 방지
 
- [] 아이디어 입력 시 하단에 suggested keywords 노출
+ [x] 아이디어 입력 시 하단에 suggested keywords 노출
 
- [] 키워드 자동 추출
+ [x] 키워드 자동 추출
 
  [] 저장 → Connect Map 반영
 
- [] Enter key 입력 가능
+ [x] Enter key 입력 가능
 
 ✔ P2 Connect Map
 

@@ -83,6 +83,8 @@
   width: 100%;
   z-index: 10;
   align-items: center;
+  min-height: 28px;
+  padding-bottom: 0;
 }
 
 .keyword-tag-selected {
@@ -92,7 +94,7 @@
   justify-content: center;
   gap: 15px;
   padding: 0 20px;
-  height: 34px;
+  height: 28px;
   border: none;
   cursor: default;
 }
@@ -132,9 +134,17 @@
 .text-area-wrapper {
   width: 100%;
   margin-top: 0;
+  padding-top: 0;
+  min-height: 78px;
 }
 
-.idea-textarea {
+.keyword-placeholder {
+  height: 28px;
+  width: 0;
+  flex-shrink: 0;
+}
+
+.input-container {
   width: 100%;
   min-height: 78px;
   height: 78px;
@@ -142,6 +152,21 @@
   border: 2px solid #1e1e1e;
   border-radius: 0;
   padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  gap: 24px;
+}
+
+.idea-textarea {
+  flex: 1;
+  min-height: 38px;
+  height: auto;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   font-family: 'Montserrat', sans-serif;
   font-weight: 400;
   font-size: 24px;
@@ -151,6 +176,38 @@
   outline: none;
   box-sizing: border-box;
   overflow-y: hidden;
+}
+
+.enter-button {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.enter-button:hover:not(:disabled) {
+  opacity: 0.7;
+}
+
+.enter-button:active:not(:disabled) {
+  opacity: 0.5;
+}
+
+.enter-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.enter-button svg {
+  width: 42px;
+  height: 42px;
 }
 
 .idea-textarea::placeholder {
@@ -170,7 +227,7 @@
   flex-direction: column;
   gap: 10px;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
 }
 

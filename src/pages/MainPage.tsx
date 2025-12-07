@@ -142,9 +142,9 @@ const MainPage = () => {
 
           <form onSubmit={handleSubmit} className="input-area">
             <div className="idea-input-wrapper">
-              {selectedKeywords.length > 0 && (
-                <div className="selected-keywords">
-                  {selectedKeywords.map((keyword, index) => (
+              <div className="selected-keywords">
+                {selectedKeywords.length > 0 ? (
+                  selectedKeywords.map((keyword, index) => (
                     <div key={index} className="keyword-tag-selected">
                       <span>{keyword}</span>
                       <button
@@ -155,19 +155,37 @@ const MainPage = () => {
                         x
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                ) : (
+                  <div className="keyword-placeholder"></div>
+                )}
+              </div>
               <div className="text-area-wrapper">
-                <textarea
-                  ref={textareaRef}
-                  className="idea-textarea"
-                  value={ideaInput}
-                  onChange={(e) => setIdeaInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Enter a new idea, thought, or concept..."
-                  rows={1}
-                />
+                <div className="input-container">
+                  <textarea
+                    ref={textareaRef}
+                    className="idea-textarea"
+                    value={ideaInput}
+                    onChange={(e) => setIdeaInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Enter a new idea, thought, or concept..."
+                    rows={1}
+                  />
+                  <button
+                    type="submit"
+                    className="enter-button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleSubmit(e as any)
+                    }}
+                    disabled={!ideaInput.trim()}
+                  >
+                    <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="42" height="42" fill="#1E1E1E"/>
+                      <path d="M9 21H32M32 21L22.1429 11M32 21L22.1429 31" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
