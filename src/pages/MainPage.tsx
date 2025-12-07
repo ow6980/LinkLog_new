@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import './MainPage.css'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
 
 const MainPage = () => {
+  const navigate = useNavigate()
   const [ideaInput, setIdeaInput] = useState('')
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
@@ -116,9 +118,13 @@ const MainPage = () => {
     const updatedIdeas = [newIdea, ...existingIdeas]
     localStorage.setItem('ideas', JSON.stringify(updatedIdeas))
 
+    // 입력 필드 초기화
     setIdeaInput('')
     setSelectedKeywords([])
     setSuggestedKeywords([])
+
+    // P2 Connect Map 페이지로 이동
+    navigate('/connect-map')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
