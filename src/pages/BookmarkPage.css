@@ -51,17 +51,19 @@
 
 .ideas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 24px;
 }
 
 .idea-card {
-  background-color: var(--bg-secondary);
-  padding: 24px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
+  background-color: #dddddd; /* color/gray/100 */
+  border: 1px solid #1e1e1e; /* color/gray/800 */
+  padding: 15px 15px 20px 15px;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .idea-card:hover {
@@ -69,38 +71,96 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.idea-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 12px;
+.idea-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.idea-content {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: 16px;
+.idea-number {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 400;
+  color: #1e1e1e; /* color/gray/800 */
+  text-transform: uppercase;
+  letter-spacing: 0.054px;
+}
+
+.bookmark-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.bookmark-icon-btn:hover {
+  transform: scale(1.1);
+}
+
+.idea-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: #1e1e1e; /* color/gray/800 */
+  margin: 0;
+  line-height: normal;
+  letter-spacing: 0.144px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .idea-keywords {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
 }
 
-.keyword-tag.small {
-  font-size: 11px;
-  padding: 3px 8px;
-  background-color: var(--header-bg);
-  color: white;
-  border-radius: 12px;
+.keyword-tag-bookmark {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #1e1e1e; /* color/gray/800 */
+  padding: 0 20px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: capitalize;
+  letter-spacing: 0.6px;
+  border-radius: 0;
+}
+
+.idea-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 13px;
 }
 
 .idea-date {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 400;
+  color: #1e1e1e; /* color/gray/800 */
+  letter-spacing: 0.054px;
+}
+
+.connected-ideas-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 400;
+  color: #1e1e1e; /* color/gray/800 */
+  letter-spacing: 0.054px;
 }
 
 .empty-state {
