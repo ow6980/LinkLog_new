@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './MainPage.css'
+import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
 
 const MainPage = () => {
   const [ideaInput, setIdeaInput] = useState('')
@@ -7,113 +8,62 @@ const MainPage = () => {
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // 주제/키워드 자동 추출 (의미 기반 주제 추출)
+  // 주제/키워드 자동 추출 (7개 고정 키워드 중에서만 추출)
   const extractKeywords = (text: string): string[] => {
     if (!text.trim()) return []
 
-    // 불용어 제거 (영어/한국어 공통)
-    const stopWords = new Set([
-      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-      'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
-      'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should',
-      'could', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those',
-      'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
-      '이', '가', '을', '를', '에', '의', '와', '과', '도', '로', '으로', '에서',
-      '그', '이', '저', '것', '수', '것', '때', '곳', '등', '및', '또한', '그리고',
-      '하는', '하는데', '한다', '하다', '된다', '되다', '있다', '없다', '같다', '이다'
-    ])
+    const textLower = text.toLowerCase()
+    const keywordScores: Array<{ keyword: string; score: number }> = []
 
-    const candidates: Array<{ text: string; score: number }> = []
+    // 각 키워드에 대해 텍스트에서 매칭되는 빈도와 위치 기반 점수 계산
+    AVAILABLE_KEYWORDS.forEach(keyword => {
+      if (selectedKeywords.includes(keyword)) return
 
-    // 1. 명사구/복합어 추출 (2-3단어 조합)
-    // 영어: 대문자로 시작하는 연속 단어 (고유명사, 전문용어)
-    const properNounPhrases = text.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g) || []
-    properNounPhrases.forEach(phrase => {
-      const cleaned = phrase.trim()
-      if (cleaned.length > 3 && !selectedKeywords.includes(cleaned)) {
-        candidates.push({ text: cleaned, score: 10 }) // 명사구는 높은 점수
+      const keywordLower = keyword.toLowerCase()
+      let score = 0
+
+      // 1. 정확한 키워드 매칭 (높은 점수)
+      const exactMatches = (textLower.match(new RegExp(`\\b${keywordLower}\\b`, 'gi')) || []).length
+      score += exactMatches * 10
+
+      // 2. 키워드와 관련된 단어 패턴 매칭
+      const relatedWords: Record<string, string[]> = {
+        'technology': ['tech', 'technical', 'technological', 'software', 'hardware', 'system', 'platform', 'application', 'algorithm', 'computing', 'digital', 'electronic', 'ai', 'ml', 'iot', 'cloud'],
+        'innovation': ['innovative', 'innovate', 'novel', 'new', 'breakthrough', 'revolutionary', 'disruptive', 'creative', 'original', 'pioneering'],
+        'data': ['dataset', 'database', 'analytics', 'analysis', 'information', 'dataset', 'processing', 'mining', 'collection', 'storage'],
+        'design': ['designing', 'designed', 'architecture', 'structure', 'layout', 'interface', 'ui', 'ux', 'user experience', 'visual'],
+        'business': ['business', 'commercial', 'enterprise', 'company', 'organization', 'market', 'customer', 'client', 'revenue', 'profit'],
+        'research': ['research', 'study', 'investigation', 'experiment', 'academic', 'scientific', 'analysis', 'findings', 'discovery'],
+        'development': ['develop', 'developing', 'building', 'creating', 'construction', 'implementation', 'programming', 'coding', 'engineering']
       }
-    })
 
-    // 영어: 일반 명사구 패턴 (형용사/명사 + 명사)
-    const commonPhrases = text.match(/\b([a-z]+(?:\s+[a-z]+){1,2})\b/gi) || []
-    commonPhrases.forEach(phrase => {
-      const cleaned = phrase.trim().toLowerCase()
-      const words = cleaned.split(/\s+/)
-      // 불용어가 포함되지 않은 경우만
-      if (words.length > 1 && words.every(w => !stopWords.has(w) && w.length > 2)) {
-        const original = phrase.trim()
-        if (!candidates.some(c => c.text.toLowerCase() === cleaned) && 
-            !selectedKeywords.includes(original)) {
-          candidates.push({ text: original, score: 5 })
-        }
-      }
-    })
-
-    // 한국어: 명사구 패턴
-    const koreanPhrases = text.match(/([가-힣]+(?:\s+[가-힣]+){1,2})/g) || []
-    koreanPhrases.forEach(phrase => {
-      const cleaned = phrase.trim()
-      if (cleaned.length > 2 && !selectedKeywords.includes(cleaned)) {
-        // 이미 단일 단어로 추출될 예정이면 제외
-        if (cleaned.split(/\s+/).length > 1) {
-          candidates.push({ text: cleaned, score: 5 })
-        }
-      }
-    })
-
-    // 2. 핵심 단어 추출 (문장 구조 기반)
-    const sentences = text.split(/[.!?。！？\n]/).filter(s => s.trim().length > 0)
-    
-    sentences.forEach((sentence) => {
-      const words = sentence
-        .replace(/[^\w\s가-힣]/g, ' ')
-        .split(/\s+/)
-        .filter((word) => word.length > 2)
-
-      words.forEach((word, wordIndex) => {
-        const lowerWord = word.toLowerCase()
-        if (!stopWords.has(lowerWord)) {
-          // 대문자로 시작하는 단어는 더 중요 (고유명사, 전문용어)
-          const isProperNoun = word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase()
-          // 문장 앞부분에 위치한 단어는 더 중요 (주제는 보통 앞에)
-          const positionScore = Math.max(1, words.length - wordIndex)
-          const score = isProperNoun ? positionScore * 3 : positionScore
-          
-          // 이미 명사구에 포함된 단어는 제외
-          const isInPhrase = candidates.some(c => 
-            c.text.toLowerCase().includes(lowerWord) && c.text !== word
-          )
-          
-          if (!isInPhrase && !selectedKeywords.includes(word)) {
-            const existing = candidates.find(c => c.text.toLowerCase() === lowerWord)
-            if (existing) {
-              existing.score += score
-            } else {
-              candidates.push({ text: word, score })
-            }
+      if (relatedWords[keywordLower]) {
+        relatedWords[keywordLower].forEach(word => {
+          const regex = new RegExp(`\\b${word}\\b`, 'gi')
+          const matches = textLower.match(regex)
+          if (matches) {
+            score += matches.length * 3
           }
-        }
-      })
-    })
+        })
+      }
 
-    // 3. 빈도 기반 추가 점수
-    candidates.forEach(candidate => {
-      const regex = new RegExp(`\\b${candidate.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
-      const matches = text.match(regex)
-      if (matches) {
-        candidate.score += matches.length
+      // 3. 문장 앞부분에 나타나는 경우 추가 점수
+      const firstSentence = text.split(/[.!?。！？\n]/)[0]?.toLowerCase() || ''
+      if (firstSentence.includes(keywordLower)) {
+        score += 5
+      }
+
+      if (score > 0) {
+        keywordScores.push({ keyword, score })
       }
     })
 
-    // 4. 점수 순으로 정렬하고 상위 6개 선택
-    const sorted = candidates
+    // 점수 순으로 정렬하고 상위 7개 선택 (이미 7개 제한이므로 모두 반환)
+    return keywordScores
       .sort((a, b) => b.score - a.score)
-      .slice(0, 6)
-      .map(c => c.text)
+      .slice(0, 7)
+      .map(item => item.keyword)
       .filter(k => k && !selectedKeywords.includes(k))
-
-    return sorted
   }
 
   useEffect(() => {

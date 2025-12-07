@@ -1,0 +1,182 @@
+[
+  {
+    "id": "1",
+    "title": "Machine Learning Algorithms for Recommendation Systems",
+    "content": "Collaborative filtering algorithms can significantly improve recommendation accuracy by analyzing user behavior patterns. Deep learning models like neural collaborative filtering combine the strengths of matrix factorization and deep neural networks to capture complex user-item interactions.",
+    "keywords": ["Technology", "Data", "Research", "Development"],
+    "createdAt": "2025-01-15T10:30:00.000Z",
+    "sourceUrl": "https://arxiv.org/abs/1708.05031",
+    "bookmarked": true
+  },
+  {
+    "id": "2",
+    "title": "Blockchain Technology in Supply Chain Management",
+    "content": "Blockchain can enhance transparency and traceability in supply chains. By creating an immutable ledger of transactions, companies can track products from origin to consumer, reducing fraud and improving trust.",
+    "keywords": ["Technology", "Business", "Innovation"],
+    "createdAt": "2025-01-14T14:20:00.000Z",
+    "sourceUrl": "https://example.com/blockchain-supply-chain",
+    "bookmarked": false
+  },
+  {
+    "id": "3",
+    "title": "Quantum Computing Applications in Drug Discovery",
+    "content": "Quantum computers can simulate molecular interactions at unprecedented speeds, potentially revolutionizing pharmaceutical research. Quantum algorithms like VQE (Variational Quantum Eigensolver) can model complex molecular structures that classical computers struggle with.",
+    "keywords": ["Technology", "Research", "Innovation", "Development"],
+    "createdAt": "2025-01-13T09:15:00.000Z",
+    "sourceUrl": "https://example.com/quantum-drug-discovery",
+    "bookmarked": true
+  },
+  {
+    "id": "4",
+    "title": "Sustainable Energy Solutions for Smart Cities",
+    "content": "Integrating renewable energy sources with smart grid technology can optimize energy distribution and reduce carbon footprint. IoT sensors and AI-powered demand forecasting enable real-time energy management.",
+    "keywords": ["Technology", "Innovation", "Design", "Development"],
+    "createdAt": "2025-01-12T16:45:00.000Z",
+    "sourceUrl": "https://example.com/smart-cities-energy",
+    "bookmarked": false
+  },
+  {
+    "id": "5",
+    "title": "Natural Language Processing for Sentiment Analysis",
+    "content": "Advanced NLP models like BERT and GPT can analyze customer feedback with high accuracy. Transformer architectures have revolutionized how we process and understand human language in business contexts.",
+    "keywords": ["Technology", "Data", "Business", "Research"],
+    "createdAt": "2025-01-11T11:00:00.000Z",
+    "sourceUrl": "https://example.com/nlp-sentiment",
+    "bookmarked": true
+  },
+  {
+    "id": "6",
+    "title": "Augmented Reality in Education",
+    "content": "AR technology can create immersive learning experiences that enhance student engagement. Interactive 3D models and virtual field trips make abstract concepts more tangible and memorable.",
+    "keywords": ["Technology", "Design", "Innovation"],
+    "createdAt": "2025-01-10T13:30:00.000Z",
+    "sourceUrl": "https://example.com/ar-education",
+    "bookmarked": false
+  },
+  {
+    "id": "7",
+    "title": "Edge Computing for Real-Time Data Processing",
+    "content": "Edge computing brings computation closer to data sources, reducing latency and bandwidth usage. This is crucial for applications like autonomous vehicles and industrial IoT that require instant decision-making.",
+    "keywords": ["Technology", "Data", "Development", "Innovation"],
+    "createdAt": "2025-01-09T08:20:00.000Z",
+    "sourceUrl": "https://example.com/edge-computing",
+    "bookmarked": true
+  },
+  {
+    "id": "8",
+    "title": "Cybersecurity in the Age of AI",
+    "content": "AI-powered security systems can detect threats faster than traditional methods. Machine learning algorithms analyze network patterns to identify anomalies and potential attacks in real-time.",
+    "keywords": ["Technology", "Business", "Data", "Research"],
+    "createdAt": "2025-01-08T15:10:00.000Z",
+    "sourceUrl": "https://example.com/ai-cybersecurity",
+    "bookmarked": false
+  },
+  {
+    "id": "9",
+    "title": "Personalized Medicine Through Genomics",
+    "content": "Genomic data analysis enables tailored treatment plans based on individual genetic profiles. CRISPR technology and gene editing open new possibilities for treating genetic disorders.",
+    "keywords": ["Research", "Innovation", "Data", "Development"],
+    "createdAt": "2025-01-07T10:50:00.000Z",
+    "sourceUrl": "https://example.com/personalized-medicine",
+    "bookmarked": true
+  },
+  {
+    "id": "10",
+    "title": "5G Networks and Internet of Things",
+    "content": "5G's low latency and high bandwidth enable massive IoT deployments. Smart homes, connected vehicles, and industrial automation benefit from reliable, high-speed connectivity.",
+    "keywords": ["Technology", "Innovation", "Development", "Business"],
+    "createdAt": "2025-01-06T12:25:00.000Z",
+    "sourceUrl": "https://example.com/5g-iot",
+    "bookmarked": false
+  },
+  {
+    "id": "11",
+    "title": "Computer Vision for Autonomous Systems",
+    "content": "Deep learning models process visual data to enable autonomous navigation. Convolutional neural networks can identify objects, detect obstacles, and make real-time decisions for self-driving cars and drones.",
+    "keywords": ["Technology", "Data", "Research", "Development", "Innovation"],
+    "createdAt": "2025-01-05T14:40:00.000Z",
+    "sourceUrl": "https://example.com/computer-vision-autonomous",
+    "bookmarked": true
+  },
+  {
+    "id": "12",
+    "title": "Robotic Process Automation in Business",
+    "content": "RPA automates repetitive tasks, freeing employees for strategic work. AI-enhanced RPA can handle complex decision-making processes, not just rule-based tasks.",
+    "keywords": ["Business", "Technology", "Development", "Innovation"],
+    "createdAt": "2025-01-04T09:55:00.000Z",
+    "sourceUrl": "https://example.com/rpa-business",
+    "bookmarked": false
+  },
+  {
+    "id": "13",
+    "title": "Virtual Reality for Mental Health Therapy",
+    "content": "VR environments provide safe spaces for exposure therapy and anxiety treatment. Immersive experiences help patients confront fears in controlled settings with real-time monitoring.",
+    "keywords": ["Technology", "Research", "Design", "Innovation"],
+    "createdAt": "2025-01-03T11:15:00.000Z",
+    "sourceUrl": "https://example.com/vr-mental-health",
+    "bookmarked": true
+  },
+  {
+    "id": "14",
+    "title": "Distributed Systems Architecture Patterns",
+    "content": "Microservices and serverless architectures enable scalable, resilient applications. Event-driven design and container orchestration with Kubernetes support modern cloud-native development.",
+    "keywords": ["Technology", "Development", "Design", "Innovation"],
+    "createdAt": "2025-01-02T16:30:00.000Z",
+    "sourceUrl": "https://example.com/distributed-systems",
+    "bookmarked": false
+  },
+  {
+    "id": "15",
+    "title": "Biometric Authentication Systems",
+    "content": "Facial recognition, fingerprint scanning, and voice authentication provide secure, convenient access control. Multi-modal biometrics combine multiple factors for enhanced security.",
+    "keywords": ["Technology", "Design", "Business", "Development"],
+    "createdAt": "2025-01-01T13:00:00.000Z",
+    "sourceUrl": "https://example.com/biometric-auth",
+    "bookmarked": true
+  },
+  {
+    "id": "16",
+    "title": "Data Privacy and GDPR Compliance",
+    "content": "Implementing privacy-by-design principles ensures data protection from the ground up. Encryption, anonymization, and consent management are key components of compliant systems.",
+    "keywords": ["Data", "Business", "Design", "Development"],
+    "createdAt": "2024-12-31T10:20:00.000Z",
+    "sourceUrl": "https://example.com/gdpr-compliance",
+    "bookmarked": false
+  },
+  {
+    "id": "17",
+    "title": "Cloud Computing Cost Optimization",
+    "content": "Right-sizing instances, reserved capacity, and spot instances can reduce cloud costs by 30-50%. Automated scaling and resource monitoring prevent over-provisioning.",
+    "keywords": ["Technology", "Business", "Development", "Data"],
+    "createdAt": "2024-12-30T14:10:00.000Z",
+    "sourceUrl": "https://example.com/cloud-cost-optimization",
+    "bookmarked": true
+  },
+  {
+    "id": "18",
+    "title": "Agile Development Methodologies",
+    "content": "Scrum, Kanban, and DevOps practices accelerate software delivery. Continuous integration and deployment pipelines enable rapid iteration and feedback loops.",
+    "keywords": ["Development", "Business", "Innovation", "Design"],
+    "createdAt": "2024-12-29T09:30:00.000Z",
+    "sourceUrl": "https://example.com/agile-devops",
+    "bookmarked": false
+  },
+  {
+    "id": "19",
+    "title": "Social Media Analytics and Insights",
+    "content": "Analyzing social media data reveals consumer sentiment and trends. Natural language processing extracts meaningful insights from millions of posts and comments.",
+    "keywords": ["Data", "Business", "Research", "Technology"],
+    "createdAt": "2024-12-28T15:45:00.000Z",
+    "sourceUrl": "https://example.com/social-media-analytics",
+    "bookmarked": true
+  },
+  {
+    "id": "20",
+    "title": "E-commerce Personalization Strategies",
+    "content": "Product recommendations, dynamic pricing, and personalized content increase conversion rates. Machine learning models predict customer preferences and optimize shopping experiences.",
+    "keywords": ["Business", "Data", "Technology", "Development", "Innovation"],
+    "createdAt": "2024-12-27T11:25:00.000Z",
+    "sourceUrl": "https://example.com/ecommerce-personalization",
+    "bookmarked": false
+  }
+]
