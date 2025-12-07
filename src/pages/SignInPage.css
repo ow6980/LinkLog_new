@@ -117,12 +117,12 @@
   gap: 35px;
   align-items: center;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
   margin-top: 0;
 }
 
 .signup-button {
-  width: 270px;
+  flex: 1;
   height: 48px;
   background-color: #666666;
   border: none;
@@ -145,7 +145,7 @@
 }
 
 .signin-submit-button {
-  width: 270px;
+  flex: 1;
   height: 48px;
   background-color: #1e1e1e;
   border: none;
@@ -208,7 +208,7 @@
 
   .signup-button,
   .signin-submit-button {
-    width: 270px;
+    flex: 1;
   }
 }
 
