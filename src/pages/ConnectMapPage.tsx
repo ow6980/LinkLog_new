@@ -155,43 +155,30 @@ const ConnectMapPage = () => {
       })
     })
 
-    // 키워드 그룹 배열 생성 및 3D 배치 (구 형태로 배치)
-    const groups: KeywordGroup[] = []
-    const groupCount = groupsMap.size
-    const radius = 400
+    // 아이디어가 있는 키워드만 필터링
+    const groupsWithIdeas = Array.from(groupsMap.entries()).filter(([_, ideasList]) => ideasList.length > 0)
+    const groupCount = groupsWithIdeas.length
+    const radius = 700 // 키워드 그룹 간 간격
     
-    // 구 형태로 키워드 그룹 배치
+    // 먼저 아이디어 노드들의 위치를 계산 (임시 그룹 중심 사용)
+    const tempGroups = new Map<string, { ideas: Idea[], tempPosition: { x: number, y: number, z: number } }>()
     let index = 0
-
-    groupsMap.forEach((ideasList, keyword) => {
-      const ideaCount = ideasList.length
-      const boxSize = {
-        width: Math.max(400, Math.min(800, ideaCount * 60)),
-        height: Math.max(300, Math.min(600, ideaCount * 50)),
-        depth: Math.max(200, Math.min(500, ideaCount * 40)),
-      }
-
-      // 구 형태로 배치 (피보나치 스파이럴 패턴 사용)
-      const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // 약 2.4 radians
-      const y = 1 - (index / (groupCount - 1)) * 2 // -1 to 1
+    
+    groupsWithIdeas.forEach(([keyword, ideasList]) => {
+      // 구 형태로 임시 그룹 중심 배치
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+      const y = groupCount > 1 ? 1 - (index / (groupCount - 1)) * 2 : 0
       const radius_at_y = Math.sqrt(1 - y * y)
       const theta = goldenAngle * index
       const x = Math.cos(theta) * radius_at_y * radius
       const z = Math.sin(theta) * radius_at_y * radius
       
-      const position = { x, y: y * 300, z } // y는 약간 압축
-      
-      groups.push({
-        keyword,
-        color: KEYWORD_COLORS[keyword] || '#666666',
+      tempGroups.set(keyword, {
         ideas: ideasList,
-        position,
-        boxSize,
+        tempPosition: { x, y: y * 500, z }
       })
       index++
     })
-
-    setKeywordGroups(groups)
 
     // 아이디어 노드 생성 (각 아이디어는 한 번만 표시)
     const nodes: IdeaNode[] = []
@@ -199,35 +186,41 @@ const ConnectMapPage = () => {
     
     // 각 아이디어를 주 키워드(첫 번째 키워드)에만 배치
     ideas.forEach(idea => {
-      if (processedIdeaIds.has(idea.id)) return // 이미 처리된 아이디어는 건너뛰기
+      if (processedIdeaIds.has(idea.id)) return
       processedIdeaIds.add(idea.id)
       
-      // 아이디어의 첫 번째 키워드를 주 키워드로 사용
       const primaryKeyword = idea.keywords[0] || 'Technology'
-      const group = groups.find(g => g.keyword === primaryKeyword)
+      const tempGroup = tempGroups.get(primaryKeyword)
       
-      if (!group) return
+      if (!tempGroup) return
       
       // 해당 그룹 내에서 이 아이디어의 인덱스 찾기
-      const groupIdeas = Array.from(new Set(group.ideas.map(i => i.id))).map(id => 
-        group.ideas.find(i => i.id === id)!
+      const groupIdeas = Array.from(new Set(tempGroup.ideas.map(i => i.id))).map(id => 
+        tempGroup.ideas.find(i => i.id === id)!
       )
       const ideaIndex = groupIdeas.findIndex(i => i.id === idea.id)
       
       if (ideaIndex === -1) return
       
-      // 3D 공간에 구 형태로 아이디어 배치 (육면체 내부에 떠있는 느낌)
+      // 구 형태로 아이디어 배치 (임시 크기 사용)
       const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-      const ideaY = groupIdeas.length > 1 ? 1 - (ideaIndex / (groupIdeas.length - 1)) * 2 : 0 // -1 to 1
+      const ideaY = groupIdeas.length > 1 ? 1 - (ideaIndex / (groupIdeas.length - 1)) * 2 : 0
       const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
       const theta = goldenAngle * ideaIndex
       
-      // 육면체 내부에 구 형태로 배치 (약간의 랜덤 오프셋 추가)
-      const sphereRadius = Math.min(group.boxSize.width, group.boxSize.height, group.boxSize.depth) * 0.35
-      const jitter = 0.8 + (ideaIndex % 3) * 0.1 // 미묘한 위치 변화
-      const x = group.position.x + Math.cos(theta) * radius_at_y * sphereRadius * jitter
-      const y = group.position.y + ideaY * sphereRadius * jitter
-      const z = group.position.z + Math.sin(theta) * radius_at_y * sphereRadius * jitter
+      // 임시 박스 크기 (나중에 실제 노드 범위로 조정됨)
+      const tempBoxWidth = Math.max(300, Math.min(800, groupIdeas.length * 60))
+      const tempBoxHeight = Math.max(250, Math.min(700, groupIdeas.length * 50))
+      const tempBoxDepth = Math.max(200, Math.min(600, groupIdeas.length * 40))
+      
+      const safeRadiusX = (tempBoxWidth / 2) * 0.7
+      const safeRadiusY = (tempBoxHeight / 2) * 0.7
+      const safeRadiusZ = (tempBoxDepth / 2) * 0.7
+      
+      const sphereRadius = Math.min(safeRadiusX, safeRadiusZ)
+      const x = tempGroup.tempPosition.x + Math.cos(theta) * radius_at_y * sphereRadius
+      const y = tempGroup.tempPosition.y + ideaY * safeRadiusY
+      const z = tempGroup.tempPosition.z + Math.sin(theta) * radius_at_y * sphereRadius
 
       nodes.push({
         ...idea,
@@ -236,14 +229,102 @@ const ConnectMapPage = () => {
       })
     })
 
-    setIdeaNodes(nodes)
+    // 각 키워드 그룹별로 노드들의 실제 위치 범위 계산 및 재조정
+    const keywordNodes = new Map<string, IdeaNode[]>()
+    nodes.forEach(node => {
+      if (!keywordNodes.has(node.keyword)) {
+        keywordNodes.set(node.keyword, [])
+      }
+      keywordNodes.get(node.keyword)!.push(node)
+    })
+
+    const groups: KeywordGroup[] = []
+    const updatedNodes: IdeaNode[] = []
+    
+    groupsWithIdeas.forEach(([keyword, ideasList]) => {
+      const keywordNodeList = keywordNodes.get(keyword) || []
+      if (keywordNodeList.length === 0) return
+      
+      // 노드들의 실제 위치 범위 계산
+      const nodePositions = keywordNodeList.map(n => n.position)
+      
+      // 노드가 하나일 때와 여러 개일 때 처리
+      let minX, maxX, minY, maxY, minZ, maxZ
+      if (nodePositions.length === 1) {
+        const pos = nodePositions[0]
+        const singleNodePadding = 100
+        minX = pos.x - singleNodePadding
+        maxX = pos.x + singleNodePadding
+        minY = pos.y - singleNodePadding
+        maxY = pos.y + singleNodePadding
+        minZ = pos.z - singleNodePadding
+        maxZ = pos.z + singleNodePadding
+      } else {
+        minX = Math.min(...nodePositions.map(p => p.x))
+        maxX = Math.max(...nodePositions.map(p => p.x))
+        minY = Math.min(...nodePositions.map(p => p.y))
+        maxY = Math.max(...nodePositions.map(p => p.y))
+        minZ = Math.min(...nodePositions.map(p => p.z))
+        maxZ = Math.max(...nodePositions.map(p => p.z))
+      }
+      
+      // 박스 크기는 노드 범위 + 여백 (노드가 박스 안에 확실히 들어가도록)
+      const padding = 80
+      const boxWidth = Math.max(200, maxX - minX + padding * 2)
+      const boxHeight = Math.max(150, maxY - minY + padding * 2)
+      const boxDepth = Math.max(100, maxZ - minZ + padding * 2)
+      
+      // 박스 중심은 노드들의 중심
+      const centerX = (minX + maxX) / 2
+      const centerY = (minY + maxY) / 2
+      const centerZ = (minZ + maxZ) / 2
+      
+      // 박스 경계 내부에서 노드들이 확실히 들어가도록 위치 재조정
+      const halfWidth = boxWidth / 2 - padding
+      const halfHeight = boxHeight / 2 - padding
+      const halfDepth = boxDepth / 2 - padding
+      
+      keywordNodeList.forEach((node, idx) => {
+        // 노드를 박스 중심 기준으로 재배치
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        const ideaY = keywordNodeList.length > 1 ? 1 - (idx / (keywordNodeList.length - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
+        const theta = goldenAngle * idx
+        
+        // 박스 내부에 구 형태로 배치
+        const sphereRadius = Math.min(halfWidth, halfDepth) * 0.9 // 약간의 여유 공간
+        const x = centerX + Math.cos(theta) * radius_at_y * sphereRadius
+        const y = centerY + ideaY * halfHeight * 0.9
+        const z = centerZ + Math.sin(theta) * radius_at_y * sphereRadius
+        
+        updatedNodes.push({
+          ...node,
+          position: { x, y, z },
+        })
+      })
+      
+      groups.push({
+        keyword,
+        color: KEYWORD_COLORS[keyword] || '#666666',
+        ideas: ideasList,
+        position: { x: centerX, y: centerY, z: centerZ },
+        boxSize: {
+          width: boxWidth,
+          height: boxHeight,
+          depth: boxDepth,
+        },
+      })
+    })
+
+    setKeywordGroups(groups)
 
     // 연결선 생성
     const conns: Connection[] = []
     
-    // 같은 키워드 내부 연결
+    // 같은 키워드 내부 연결 (박스 내부에 재배치된 노드들 사용)
+    const nodesForConnections = updatedNodes.length > 0 ? updatedNodes : nodes
     groups.forEach(group => {
-      const groupNodes = nodes.filter(n => n.keyword === group.keyword)
+      const groupNodes = nodesForConnections.filter((n: IdeaNode) => n.keyword === group.keyword)
       for (let i = 0; i < groupNodes.length; i++) {
         for (let j = i + 1; j < groupNodes.length; j++) {
           // 일부만 연결 (너무 많으면 시각적 혼잡)
@@ -260,17 +341,17 @@ const ConnectMapPage = () => {
     })
 
     // 다른 키워드 간 연결 (공통 키워드를 가진 아이디어들)
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        if (nodes[i].keyword !== nodes[j].keyword) {
+    for (let i = 0; i < nodesForConnections.length; i++) {
+      for (let j = i + 1; j < nodesForConnections.length; j++) {
+        if (nodesForConnections[i].keyword !== nodesForConnections[j].keyword) {
           // 두 아이디어가 공통 키워드를 가지고 있는지 확인
-          const commonKeywords = nodes[i].keywords.filter(k => 
-            nodes[j].keywords.includes(k)
+          const commonKeywords = nodesForConnections[i].keywords.filter((k: string) => 
+            nodesForConnections[j].keywords.includes(k)
           )
           if (commonKeywords.length > 0 && Math.random() > 0.85) {
             conns.push({
-              source: nodes[i],
-              target: nodes[j],
+              source: nodesForConnections[i],
+              target: nodesForConnections[j],
               type: 'cross-keyword',
               isDotted: false,
             })
@@ -283,7 +364,7 @@ const ConnectMapPage = () => {
     const nodeConnectionCounts = new Map<string, number>()
     const nodeConnectedKeywords = new Map<string, Set<string>>() // 노드별 연결된 키워드들
     
-    nodes.forEach(node => {
+    nodesForConnections.forEach(node => {
       nodeConnectionCounts.set(node.id, 0)
       nodeConnectedKeywords.set(node.id, new Set([node.keyword])) // 자기 자신의 키워드 포함
     })
@@ -305,8 +386,8 @@ const ConnectMapPage = () => {
       }
     })
 
-    // 노드 크기 결정 및 업데이트
-    const updatedNodes = nodes.map(node => {
+    // 노드 크기 결정 및 업데이트 (박스 내부에 재배치된 노드들 사용)
+    const nodesWithSizes = nodesForConnections.map(node => {
       const connectionCount = nodeConnectionCounts.get(node.id) || 0
       let nodeSize: 'big' | 'mid' | 'small' = 'small'
       
@@ -329,7 +410,10 @@ const ConnectMapPage = () => {
       }
     })
 
-    setIdeaNodes(updatedNodes)
+    // 최종 노드 배열: 박스 내부에 재배치된 노드들 + 연결 개수 기반 크기 정보
+    const finalNodesWithSizes = nodesWithSizes.length > 0 ? nodesWithSizes : nodesForConnections
+    
+    setIdeaNodes(finalNodesWithSizes)
     setConnections(conns)
   }, [ideas])
 
@@ -666,43 +750,143 @@ const ConnectMapPage = () => {
     setRotation({ x: -15, y: 25, z: 0 }) // 초기 회전 각도로 리셋
   }
 
-  // 육면체 면 생성 (와이어프레임 스타일)
-  const createCubeFace = (
-    width: number,
-    height: number,
-    depth: number,
-    face: 'front' | 'back' | 'right' | 'left' | 'top' | 'bottom',
+  // 3D 육면체 컴포넌트 - 각 면을 3D 투영으로 렌더링
+  const Cube3D = ({
+    centerX,
+    centerY,
+    centerZ,
+    width,
+    height,
+    depth,
+    color,
+    project3DTo2D,
+    rotation,
+  }: {
+    centerX: number
+    centerY: number
+    centerZ: number
+    width: number
+    height: number
+    depth: number
     color: string
-  ) => {
-    const faces: Record<string, { transform: string; width: number; height: number }> = {
-      front: { transform: `translateZ(${depth / 2}px)`, width, height },
-      back: { transform: `translateZ(${-depth / 2}px) rotateY(180deg)`, width, height },
-      right: { transform: `rotateY(90deg) translateZ(${depth / 2}px)`, width: depth, height },
-      left: { transform: `rotateY(-90deg) translateZ(${depth / 2}px)`, width: depth, height },
-      top: { transform: `rotateX(90deg) translateZ(${height / 2}px)`, width, height: depth },
-      bottom: { transform: `rotateX(-90deg) translateZ(${height / 2}px)`, width, height: depth },
-    }
+    project3DTo2D: (x: number, y: number, z: number) => { x: number; y: number; z: number; scale: number }
+    rotation: { x: number; y: number; z: number }
+  }) => {
+    // 육면체의 8개 꼭짓점 계산
+    const w2 = width / 2
+    const h2 = height / 2
+    const d2 = depth / 2
 
-    const faceConfig = faces[face]
+    const vertices = [
+      // 앞면 (front) - z가 큰 쪽
+      { x: centerX - w2, y: centerY - h2, z: centerZ + d2 }, // 좌상
+      { x: centerX + w2, y: centerY - h2, z: centerZ + d2 }, // 우상
+      { x: centerX + w2, y: centerY + h2, z: centerZ + d2 }, // 우하
+      { x: centerX - w2, y: centerY + h2, z: centerZ + d2 }, // 좌하
+      // 뒷면 (back) - z가 작은 쪽
+      { x: centerX - w2, y: centerY - h2, z: centerZ - d2 }, // 좌상
+      { x: centerX + w2, y: centerY - h2, z: centerZ - d2 }, // 우상
+      { x: centerX + w2, y: centerY + h2, z: centerZ - d2 }, // 우하
+      { x: centerX - w2, y: centerY + h2, z: centerZ - d2 }, // 좌하
+    ]
+
+    // 각 꼭짓점을 2D로 투영
+    const projectedVertices = vertices.map(v => project3DTo2D(v.x, v.y, v.z))
+
+    // 각 면 정의 (정점 인덱스)
+    const faces = [
+      { name: 'front', indices: [0, 1, 2, 3] },
+      { name: 'back', indices: [5, 4, 7, 6] },
+      { name: 'right', indices: [1, 5, 6, 2] },
+      { name: 'left', indices: [4, 0, 3, 7] },
+      { name: 'top', indices: [4, 5, 1, 0] },
+      { name: 'bottom', indices: [3, 2, 6, 7] },
+    ]
+
+    // 면의 깊이(평균 z)로 정렬 (뒤에서 앞으로)
+    const sortedFaces = faces
+      .map(face => {
+        const avgZ = face.indices.reduce((sum, idx) => sum + projectedVertices[idx].z, 0) / face.indices.length
+        return { ...face, avgZ }
+      })
+      .sort((a, b) => a.avgZ - b.avgZ)
+
+    // SVG를 viewBox 없이 절대 좌표로 렌더링 (화면 이동과 동기화)
     return (
-      <div
-        key={face}
-        className="cube-face wireframe"
+      <svg
         style={{
-          width: `${faceConfig.width}px`,
-          height: `${faceConfig.height}px`,
-          transform: faceConfig.transform,
-          backgroundColor: 'transparent',
-          opacity: 0.3,
-          border: `1px dashed ${color}`,
           position: 'absolute',
-          left: `${-faceConfig.width / 2}px`,
-          top: `${-faceConfig.height / 2}px`,
-          backfaceVisibility: 'hidden',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
           pointerEvents: 'none',
-          boxShadow: `inset 0 0 20px ${color}40`,
+          zIndex: 10,
+          overflow: 'visible',
         }}
-      />
+      >
+        {sortedFaces.map((face, idx) => {
+          const points = face.indices.map(i => {
+            const v = projectedVertices[i]
+            return `${v.x},${v.y}`
+          }).join(' ')
+
+          // 면이 보이는지 확인 (법선 벡터 계산)
+          const v0 = vertices[face.indices[0]]
+          const v1 = vertices[face.indices[1]]
+          const v2 = vertices[face.indices[2]]
+
+          // 면의 두 벡터
+          const vec1 = { x: v1.x - v0.x, y: v1.y - v0.y, z: v1.z - v0.z }
+          const vec2 = { x: v2.x - v0.x, y: v2.y - v0.y, z: v2.z - v0.z }
+
+          // 외적으로 법선 벡터 계산
+          const normal = {
+            x: vec1.y * vec2.z - vec1.z * vec2.y,
+            y: vec1.z * vec2.x - vec1.x * vec2.z,
+            z: vec1.x * vec2.y - vec1.y * vec2.x,
+          }
+
+          // 카메라 방향 (회전된 z축)
+          const radX = (-rotation.x * Math.PI) / 180
+          const radY = (-rotation.y * Math.PI) / 180
+          const cameraDir = {
+            x: Math.sin(radY),
+            y: Math.sin(radX),
+            z: Math.cos(radX) * Math.cos(radY),
+          }
+
+          // 면이 카메라를 향하는지 확인 (dot product)
+          const dot = normal.x * cameraDir.x + normal.y * cameraDir.y + normal.z * cameraDir.z
+          const isFrontFace = dot > 0
+
+          // 앞면과 뒷면의 투명도 차이
+          const fillOpacity = isFrontFace ? 0.05 : 0.02
+          const strokeOpacity = isFrontFace ? 1 : 0.6
+
+          return (
+            <g key={`face-${face.name}-${idx}`}>
+              {/* 면의 fill */}
+              <polygon
+                points={points}
+                fill={color}
+                fillOpacity={fillOpacity}
+              />
+              {/* 면의 경계선 */}
+              <polygon
+                points={points}
+                fill="none"
+                stroke={color}
+                strokeWidth="1"
+                strokeOpacity={strokeOpacity}
+                strokeLinejoin="miter"
+                strokeMiterlimit="10"
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          )
+        })}
+      </svg>
     )
   }
   
@@ -751,63 +935,55 @@ const ConnectMapPage = () => {
         
         <div className="map-3d-space">
           {keywordGroups.map((group) => {
-            const projected = project3DTo2D(group.position.x, group.position.y, group.position.z)
-            const tagProjected = project3DTo2D(
+            // 키워드 태그 위치를 육면체 상단에 더 명확하게 배치
+            const tagTopProjected = project3DTo2D(
               group.position.x,
-              group.position.y - group.boxSize.height / 2 - 40,
+              group.position.y - group.boxSize.height / 2 - 50,
               group.position.z
             )
 
             return (
-              <div key={`group-${group.keyword}`} className="keyword-group">
-                {/* 키워드 태그 */}
+              <div 
+                key={`group-${group.keyword}`} 
+                className="keyword-group"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                }}
+              >
+                {/* 3D 육면체 - 각 면을 3D 투영으로 렌더링 */}
+                <Cube3D
+                  centerX={group.position.x}
+                  centerY={group.position.y}
+                  centerZ={group.position.z}
+                  width={group.boxSize.width}
+                  height={group.boxSize.height}
+                  depth={group.boxSize.depth}
+                  color={group.color}
+                  project3DTo2D={project3DTo2D}
+                  rotation={rotation}
+                />
+
+                {/* 키워드 태그 - 육면체 상단에 배치 */}
                 <div
                   className="keyword-tag"
                   style={{
                     position: 'absolute',
-                    left: `${tagProjected.x}px`,
-                    top: `${tagProjected.y}px`,
+                    left: `${tagTopProjected.x}px`,
+                    top: `${tagTopProjected.y}px`,
                     backgroundColor: group.color,
-                    transform: `translate(-50%, -50%) scale(${Math.max(0.5, tagProjected.scale)})`,
+                    color: '#ffffff',
+                    transform: `translate(-50%, -50%) scale(${Math.max(1.0, tagTopProjected.scale)})`,
                     transformOrigin: 'center',
-                    zIndex: 100,
+                    zIndex: 1000, // 키워드 태그는 가장 앞에
+                    pointerEvents: 'auto',
                   }}
                 >
                   {group.keyword}
-                </div>
-
-                {/* 3D 육면체 */}
-                <div
-                  className="cube-container"
-                  style={{
-                    position: 'absolute',
-                    left: `${projected.x}px`,
-                    top: `${projected.y}px`,
-                    transform: `translate(-50%, -50%) scale(${Math.max(0.3, projected.scale)})`,
-                    transformOrigin: 'center',
-                    transformStyle: 'preserve-3d',
-                  }}
-                >
-                  <div
-                    className="cube"
-                    style={{
-                      width: `${group.boxSize.width}px`,
-                      height: `${group.boxSize.height}px`,
-                      transform: `translateZ(${-group.boxSize.depth / 2}px)`,
-                      transformStyle: 'preserve-3d',
-                      position: 'relative',
-                    }}
-                  >
-                    {['front', 'back', 'right', 'left', 'top', 'bottom'].map((face) =>
-                      createCubeFace(
-                        group.boxSize.width,
-                        group.boxSize.height,
-                        group.boxSize.depth,
-                        face as any,
-                        group.color
-                      )
-                    )}
-                  </div>
                 </div>
               </div>
             )

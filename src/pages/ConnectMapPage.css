@@ -46,6 +46,9 @@
   contain: layout style paint;
   transform: translateZ(0); /* GPU 가속 */
   -webkit-transform: translateZ(0);
+  perspective: 2000px; /* 3D perspective 추가 */
+  perspective-origin: center center;
+  transform-style: preserve-3d;
 }
 
 .keyword-group {
@@ -64,7 +67,7 @@
   padding: 8px 20px;
   font-size: 20px;
   font-weight: 400;
-  color: var(--text-primary);
+  color: #ffffff; /* 흰색 텍스트로 변경 */
   border-radius: 4px;
   white-space: nowrap;
   text-transform: capitalize;
