@@ -2,7 +2,7 @@
   width: 100%;
   height: 60px;
   background-color: #dddddd;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid #666666;
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -46,7 +46,7 @@
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
-  color: #b3b3b3;
+  color: #949494;
   text-decoration: none;
   padding: 0 20px;
   height: 34px;
@@ -59,11 +59,11 @@
 }
 
 .nav-link:hover {
-  color: #cccccc;
+  color: #666666;
 }
 
 .nav-link.active {
-  color: #666666;
+  color: #444444;
 }
 
 .header-signin {
@@ -74,7 +74,7 @@
 
 .signin-button {
   background: transparent;
-  border: 1px solid #b3b3b3;
+  border: 1px solid #949494;
   height: 34px;
   padding: 0 21px;
   font-family: 'Montserrat', sans-serif;
@@ -92,7 +92,7 @@
 }
 
 .signin-button:hover {
-  background-color: #b3b3b3;
+  background-color: #949494;
   color: #1e1e1e;
 }
 
