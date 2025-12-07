@@ -64,18 +64,24 @@
 }
 
 .keyword-tag {
-  padding: 8px 20px;
+  padding: 0 20px;
+  height: 34px;
   font-size: 20px;
+  line-height: 16px;
   font-weight: 400;
-  color: #ffffff; /* 흰색 텍스트로 변경 */
-  border-radius: 4px;
+  color: var(--color-gray-800, #1e1e1e); /* gray/800 */
+  border-radius: 0 !important;
   white-space: nowrap;
   text-transform: capitalize;
-  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
   pointer-events: auto;
   z-index: 10;
   font-family: 'Montserrat', sans-serif;
   letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .cube-container {
@@ -106,6 +112,9 @@
   cursor: pointer;
   pointer-events: auto;
   display: inline-block;
+  /* 겹침 시 선명도 유지 */
+  transform-style: preserve-3d;
+  will-change: transform;
 }
 
 .idea-node {
@@ -115,22 +124,32 @@
   font-weight: 400;
   font-family: 'Montserrat', sans-serif;
   color: #1e1e1e; /* color/gray/800 */
-  white-space: nowrap;
   letter-spacing: 0.6px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-transform: capitalize;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
   transition: box-shadow 0.15s ease;
   contain: layout style paint;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  isolation: isolate;
+  /* isolation: isolate 제거 - z-index가 제대로 작동하도록 */
   box-sizing: border-box;
   margin: 0;
+  min-width: 0; /* flexbox에서 자식 요소의 overflow를 위해 필요 */
+  /* 텍스트 렌더링 - 기본값으로 복원 (scale과 호환되도록) */
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.idea-node-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
 }
 
 .idea-node-gradient-border {
@@ -207,30 +226,38 @@
 .control-btn {
   width: 40px;
   height: 40px;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+  background-color: #DDDDDD;
+  border: 1px solid #666666;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.25);
-  color: var(--text-primary);
-  transition: background-color 0.2s ease, transform 0.1s ease;
+  filter: drop-shadow(0px 0px 5px rgba(0, 0, 0, 0.25));
+  color: #666666;
+  transition: background-color 0.2s ease;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .control-btn:hover {
-  background-color: var(--bg-primary);
-  transform: scale(1.05);
+  background-color: #CCCCCC;
 }
 
 .control-btn:active {
-  transform: scale(0.95);
+  background-color: #CCCCCC;
 }
 
 .control-btn.active {
-  background-color: var(--text-primary);
-  color: var(--bg-secondary);
+  background-color: #CCCCCC;
+  color: #666666;
+}
+
+.control-btn svg {
+  display: block;
+  shape-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .add-idea-btn {
@@ -238,26 +265,28 @@
   bottom: 40px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: var(--text-primary);
-  color: var(--bg-secondary);
+  background-color: #1e1e1e;
+  color: #dddddd;
   border: none;
-  padding: 12px 59px;
+  padding: 0 59px;
+  height: 48px;
   font-size: 12px;
   font-weight: 600;
+  font-family: 'Montserrat', sans-serif;
   letter-spacing: 1.8px;
   text-transform: uppercase;
   cursor: pointer;
   box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   z-index: 20;
-  font-family: 'Montserrat', sans-serif;
   transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 .add-idea-btn:hover {
-  background-color: var(--text-secondary);
+  background-color: #111111;
   transform: translateX(-50%) scale(1.05);
 }
 
@@ -266,7 +295,7 @@
 }
 
 .add-idea-btn svg {
-  stroke: var(--bg-secondary);
+  stroke: #dddddd;
 }
 
 .side-panel {

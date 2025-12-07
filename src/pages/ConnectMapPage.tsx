@@ -100,6 +100,27 @@ interface Connection {
   isDotted?: boolean
 }
 
+// 텍스트 유사도 계산 함수 (0 ~ 1 사이의 값)
+const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
+  // 제목과 내용을 합쳐서 텍스트 준비
+  const text1 = `${idea1.title} ${idea1.content}`.toLowerCase()
+  const text2 = `${idea2.title} ${idea2.content}`.toLowerCase()
+  
+  // 단어로 분리 (영문, 숫자만 추출, 중복 제거)
+  const words1 = new Set(text1.match(/[a-z0-9]+/g) || [])
+  const words2 = new Set(text2.match(/[a-z0-9]+/g) || [])
+  
+  // 공통 단어 계산
+  const commonWords = new Set([...words1].filter(word => words2.has(word)))
+  
+  // Jaccard 유사도: 교집합 / 합집합
+  const union = new Set([...words1, ...words2])
+  
+  if (union.size === 0) return 0
+  
+  return commonWords.size / union.size
+}
+
 
 const ConnectMapPage = () => {
   const navigate = useNavigate()
@@ -118,7 +139,6 @@ const ConnectMapPage = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [dragMode, setDragMode] = useState<'rotate' | 'pan'>('rotate') // 드래그 모드
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, rotationX: 0, rotationY: 0, transformX: 0, transformY: 0 })
-  const [autoRotate, setAutoRotate] = useState(false) // 자동 회전 모드
   const [animationFrame, setAnimationFrame] = useState(0) // 애니메이션 프레임
 
   // 아이디어 로드 (localStorage 우선, 없으면 mock 데이터 사용)
@@ -185,47 +205,107 @@ const ConnectMapPage = () => {
     const processedIdeaIds = new Set<string>()
     
     // 각 아이디어를 주 키워드(첫 번째 키워드)에만 배치
+    // 단, 키워드가 2개인 경우 두 키워드 영역 사이에 배치
     ideas.forEach(idea => {
       if (processedIdeaIds.has(idea.id)) return
       processedIdeaIds.add(idea.id)
       
       const primaryKeyword = idea.keywords[0] || 'Technology'
-      const tempGroup = tempGroups.get(primaryKeyword)
+      const secondaryKeyword = idea.keywords[1]
+      const hasTwoKeywords = idea.keywords.length >= 2 && secondaryKeyword && tempGroups.has(secondaryKeyword)
       
-      if (!tempGroup) return
+      let finalPosition: { x: number; y: number; z: number }
+      let finalKeyword: string
       
-      // 해당 그룹 내에서 이 아이디어의 인덱스 찾기
-      const groupIdeas = Array.from(new Set(tempGroup.ideas.map(i => i.id))).map(id => 
-        tempGroup.ideas.find(i => i.id === id)!
-      )
-      const ideaIndex = groupIdeas.findIndex(i => i.id === idea.id)
-      
-      if (ideaIndex === -1) return
-      
-      // 구 형태로 아이디어 배치 (임시 크기 사용)
-      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-      const ideaY = groupIdeas.length > 1 ? 1 - (ideaIndex / (groupIdeas.length - 1)) * 2 : 0
-      const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
-      const theta = goldenAngle * ideaIndex
-      
-      // 임시 박스 크기 (나중에 실제 노드 범위로 조정됨)
-      const tempBoxWidth = Math.max(300, Math.min(800, groupIdeas.length * 60))
-      const tempBoxHeight = Math.max(250, Math.min(700, groupIdeas.length * 50))
-      const tempBoxDepth = Math.max(200, Math.min(600, groupIdeas.length * 40))
-      
-      const safeRadiusX = (tempBoxWidth / 2) * 0.7
-      const safeRadiusY = (tempBoxHeight / 2) * 0.7
-      const safeRadiusZ = (tempBoxDepth / 2) * 0.7
-      
-      const sphereRadius = Math.min(safeRadiusX, safeRadiusZ)
-      const x = tempGroup.tempPosition.x + Math.cos(theta) * radius_at_y * sphereRadius
-      const y = tempGroup.tempPosition.y + ideaY * safeRadiusY
-      const z = tempGroup.tempPosition.z + Math.sin(theta) * radius_at_y * sphereRadius
+      if (hasTwoKeywords) {
+        // 키워드가 2개인 경우: 두 키워드 그룹 위치의 중간 지점에 배치
+        const primaryGroup = tempGroups.get(primaryKeyword)
+        const secondaryGroup = tempGroups.get(secondaryKeyword)
+        
+        if (!primaryGroup || !secondaryGroup) {
+          // 두 그룹이 모두 존재하지 않으면 기본 로직 사용
+          const tempGroup = primaryGroup || tempGroups.get(primaryKeyword)
+          if (!tempGroup) return
+          const groupIdeas = Array.from(new Set(tempGroup.ideas.map(i => i.id))).map(id => 
+            tempGroup.ideas.find(i => i.id === id)!
+          )
+          const ideaIndex = groupIdeas.findIndex(i => i.id === idea.id)
+          if (ideaIndex === -1) return
+          
+          const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+          const ideaY = groupIdeas.length > 1 ? 1 - (ideaIndex / (groupIdeas.length - 1)) * 2 : 0
+          const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
+          const theta = goldenAngle * ideaIndex
+          // 노드 간 간격을 늘리기 위해 박스 크기와 배치 반경 증가
+          const minNodeSpacing = 150
+          const tempBoxWidth = Math.max(400, Math.min(1000, groupIdeas.length * minNodeSpacing))
+          const tempBoxHeight = Math.max(300, Math.min(900, groupIdeas.length * minNodeSpacing * 0.8))
+          const tempBoxDepth = Math.max(200, Math.min(700, groupIdeas.length * minNodeSpacing * 0.6))
+          const safeRadiusX = (tempBoxWidth / 2) * 0.65 // 0.7 -> 0.65로 감소하여 간격 증가
+          const safeRadiusY = (tempBoxHeight / 2) * 0.65
+          const safeRadiusZ = (tempBoxDepth / 2) * 0.65
+          const sphereRadius = Math.min(safeRadiusX, safeRadiusZ)
+          
+          finalPosition = {
+            x: tempGroup.tempPosition.x + Math.cos(theta) * radius_at_y * sphereRadius,
+            y: tempGroup.tempPosition.y + ideaY * safeRadiusY,
+            z: tempGroup.tempPosition.z + Math.sin(theta) * radius_at_y * sphereRadius
+          }
+          finalKeyword = primaryKeyword
+        } else {
+          // 두 그룹 위치의 중간 지점
+          finalPosition = {
+            x: (primaryGroup.tempPosition.x + secondaryGroup.tempPosition.x) / 2,
+            y: (primaryGroup.tempPosition.y + secondaryGroup.tempPosition.y) / 2,
+            z: (primaryGroup.tempPosition.z + secondaryGroup.tempPosition.z) / 2,
+          }
+          finalKeyword = primaryKeyword // 렌더링용으로는 primaryKeyword 사용
+        }
+      } else {
+        // 키워드가 1개인 경우: 기존 로직 사용
+        const tempGroup = tempGroups.get(primaryKeyword)
+        if (!tempGroup) return
+        
+        const groupIdeas = Array.from(new Set(tempGroup.ideas.map(i => i.id))).map(id => 
+          tempGroup.ideas.find(i => i.id === id)!
+        )
+        const ideaIndex = groupIdeas.findIndex(i => i.id === idea.id)
+        if (ideaIndex === -1) return
+        
+        // 노드 간 간격을 늘리기 위해 박스 크기와 배치 반경 증가
+        const minNodeSpacing = 200 // 더 큰 간격
+        const tempBoxWidth = Math.max(500, groupIdeas.length * minNodeSpacing)
+        const tempBoxHeight = Math.max(400, groupIdeas.length * minNodeSpacing * 0.8)
+        const tempBoxDepth = Math.max(300, groupIdeas.length * minNodeSpacing * 0.6)
+        
+        const safeRadiusX = (tempBoxWidth / 2) * 0.8 // 더 넓게
+        const safeRadiusY = (tempBoxHeight / 2) * 0.8
+        const safeRadiusZ = (tempBoxDepth / 2) * 0.8
+        
+        // 노드 ID를 기반으로 고유한 시드 생성
+        const nodeSeed = idea.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+        const uniqueIdx = ideaIndex + (nodeSeed % 100) / 1000 // 0.000~0.099 범위의 고유 오프셋
+        
+        // 구 형태로 배치하되 각도와 반경을 더 균등하게
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        const ideaY = groupIdeas.length > 1 ? 1 - (uniqueIdx / (groupIdeas.length - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
+        // 각 노드마다 고유한 각도 부여 (노드 ID 기반)
+        const theta = goldenAngle * uniqueIdx + (nodeSeed % 1000) * 0.001
+        
+        const sphereRadius = Math.min(safeRadiusX, safeRadiusZ) * 0.75
+        finalPosition = {
+          x: tempGroup.tempPosition.x + Math.cos(theta) * radius_at_y * sphereRadius,
+          y: tempGroup.tempPosition.y + ideaY * safeRadiusY * 0.75,
+          z: tempGroup.tempPosition.z + Math.sin(theta) * radius_at_y * sphereRadius
+        }
+        finalKeyword = primaryKeyword
+      }
 
       nodes.push({
         ...idea,
-        position: { x, y, z },
-        keyword: primaryKeyword,
+        position: finalPosition,
+        keyword: finalKeyword,
       })
     })
 
@@ -240,18 +320,29 @@ const ConnectMapPage = () => {
 
     const groups: KeywordGroup[] = []
     const updatedNodes: IdeaNode[] = []
+    const twoKeywordNodesMap = new Map<string, IdeaNode>() // 키워드가 2개인 노드들 (ID로 중복 제거)
     
     groupsWithIdeas.forEach(([keyword, ideasList]) => {
       const keywordNodeList = keywordNodes.get(keyword) || []
       if (keywordNodeList.length === 0) return
       
-      // 노드들의 실제 위치 범위 계산
-      const nodePositions = keywordNodeList.map(n => n.position)
+      // 키워드가 2개인 노드는 별도로 수집 (나중에 교집합 위치에 배치)
+      keywordNodeList.forEach(node => {
+        const hasTwoKeywords = node.keywords && node.keywords.length >= 2
+        if (hasTwoKeywords) {
+          twoKeywordNodesMap.set(node.id, node)
+        }
+      })
+      
+      // 키워드가 2개가 아닌 노드들의 위치만 사용하여 박스 크기 계산
+      const singleKeywordNodePositions = keywordNodeList
+        .filter(node => !(node.keywords && node.keywords.length >= 2))
+        .map(n => n.position)
       
       // 노드가 하나일 때와 여러 개일 때 처리
       let minX, maxX, minY, maxY, minZ, maxZ
-      if (nodePositions.length === 1) {
-        const pos = nodePositions[0]
+      if (singleKeywordNodePositions.length === 1) {
+        const pos = singleKeywordNodePositions[0]
         const singleNodePadding = 100
         minX = pos.x - singleNodePadding
         maxX = pos.x + singleNodePadding
@@ -259,20 +350,35 @@ const ConnectMapPage = () => {
         maxY = pos.y + singleNodePadding
         minZ = pos.z - singleNodePadding
         maxZ = pos.z + singleNodePadding
+      } else if (singleKeywordNodePositions.length > 1) {
+        minX = Math.min(...singleKeywordNodePositions.map(p => p.x))
+        maxX = Math.max(...singleKeywordNodePositions.map(p => p.x))
+        minY = Math.min(...singleKeywordNodePositions.map(p => p.y))
+        maxY = Math.max(...singleKeywordNodePositions.map(p => p.y))
+        minZ = Math.min(...singleKeywordNodePositions.map(p => p.z))
+        maxZ = Math.max(...singleKeywordNodePositions.map(p => p.z))
       } else {
-        minX = Math.min(...nodePositions.map(p => p.x))
-        maxX = Math.max(...nodePositions.map(p => p.x))
-        minY = Math.min(...nodePositions.map(p => p.y))
-        maxY = Math.max(...nodePositions.map(p => p.y))
-        minZ = Math.min(...nodePositions.map(p => p.z))
-        maxZ = Math.max(...nodePositions.map(p => p.z))
+        // 단일 키워드 노드가 없으면 기본값 사용
+        const defaultPos = keywordNodeList[0]?.position || { x: 0, y: 0, z: 0 }
+        minX = maxX = defaultPos.x
+        minY = maxY = defaultPos.y
+        minZ = maxZ = defaultPos.z
       }
       
       // 박스 크기는 노드 범위 + 여백 (노드가 박스 안에 확실히 들어가도록)
-      const padding = 80
-      const boxWidth = Math.max(200, maxX - minX + padding * 2)
-      const boxHeight = Math.max(150, maxY - minY + padding * 2)
-      const boxDepth = Math.max(100, maxZ - minZ + padding * 2)
+      // 노드 간 간격을 늘리기 위해 padding과 최소 크기 증가
+      const padding = 120
+      const minNodeSpacing = 150 // 노드 간 최소 간격
+      const nodeCount = keywordNodeList.filter(n => !(n.keywords && n.keywords.length >= 2)).length
+      
+      // 노드 개수에 따라 최소 박스 크기 계산
+      const minBoxWidth = Math.max(400, nodeCount * minNodeSpacing)
+      const minBoxHeight = Math.max(300, nodeCount * minNodeSpacing * 0.8)
+      const minBoxDepth = Math.max(200, nodeCount * minNodeSpacing * 0.6)
+      
+      const boxWidth = Math.max(minBoxWidth, maxX - minX + padding * 2)
+      const boxHeight = Math.max(minBoxHeight, maxY - minY + padding * 2)
+      const boxDepth = Math.max(minBoxDepth, maxZ - minZ + padding * 2)
       
       // 박스 중심은 노드들의 중심
       const centerX = (minX + maxX) / 2
@@ -284,18 +390,95 @@ const ConnectMapPage = () => {
       const halfHeight = boxHeight / 2 - padding
       const halfDepth = boxDepth / 2 - padding
       
-      keywordNodeList.forEach((node, idx) => {
+      // 키워드가 2개가 아닌 노드들만 필터링하여 정확한 인덱스 계산
+      const singleKeywordNodes = keywordNodeList.filter(node => {
+        return !(node.keywords && node.keywords.length >= 2)
+      })
+      
+      // 노드 간 최소 거리 보장
+      const minDistance = 250 // 노드 간 최소 거리 증가 (픽셀)
+      const placedNodes: Array<{ x: number; y: number; z: number }> = []
+      
+      singleKeywordNodes.forEach((node, idx) => {
+        // 노드 ID를 기반으로 고유한 시드 생성 (같은 인덱스라도 다른 위치)
+        const nodeSeed = node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+        const uniqueIdx = idx + (nodeSeed % 100) / 1000 // 0.000~0.099 범위의 고유 오프셋
+        
         // 노드를 박스 중심 기준으로 재배치
         const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-        const ideaY = keywordNodeList.length > 1 ? 1 - (idx / (keywordNodeList.length - 1)) * 2 : 0
+        const ideaY = singleKeywordNodes.length > 1 ? 1 - (uniqueIdx / (singleKeywordNodes.length - 1)) * 2 : 0
         const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
-        const theta = goldenAngle * idx
+        // 각 노드마다 고유한 각도 부여 (노드 ID 기반 고유성 보장)
+        const theta = goldenAngle * uniqueIdx + (nodeSeed % 1000) * 0.001
         
-        // 박스 내부에 구 형태로 배치
-        const sphereRadius = Math.min(halfWidth, halfDepth) * 0.9 // 약간의 여유 공간
-        const x = centerX + Math.cos(theta) * radius_at_y * sphereRadius
-        const y = centerY + ideaY * halfHeight * 0.9
-        const z = centerZ + Math.sin(theta) * radius_at_y * sphereRadius
+        // 박스 경계 정의 (더 엄격한 경계)
+        const boxMinX = centerX - halfWidth
+        const boxMaxX = centerX + halfWidth
+        const boxMinY = centerY - halfHeight
+        const boxMaxY = centerY + halfHeight
+        const boxMinZ = centerZ - halfDepth
+        const boxMaxZ = centerZ + halfDepth
+        
+        // 박스 내부에 구 형태로 배치 (반경을 더 줄여서 박스 내부에 확실히 포함)
+        // 안전 여유 공간을 고려한 반경 계산
+        const safeMargin = 50 // 안전 여유 공간
+        const maxSafeRadius = Math.min(
+          halfWidth - safeMargin,
+          halfDepth - safeMargin,
+          Math.min(halfWidth, halfDepth) * 0.6 // 더 보수적인 반경
+        )
+        let sphereRadius = Math.max(50, maxSafeRadius) // 최소 50px 보장
+        let x = centerX + Math.cos(theta) * radius_at_y * sphereRadius
+        let y = centerY + ideaY * Math.max(halfHeight * 0.65, 100) // 최소 높이 보장
+        let z = centerZ + Math.sin(theta) * radius_at_y * sphereRadius
+        
+        // 초기 배치 후 즉시 박스 경계 내로 클리핑
+        x = Math.max(boxMinX + safeMargin, Math.min(boxMaxX - safeMargin, x))
+        y = Math.max(boxMinY + safeMargin, Math.min(boxMaxY - safeMargin, y))
+        z = Math.max(boxMinZ + safeMargin, Math.min(boxMaxZ - safeMargin, z))
+        
+        // 이미 배치된 노드들과 충돌 검사 및 최소 거리 보장
+        let attempts = 0
+        const maxAttempts = 100
+        while (attempts < maxAttempts) {
+          let tooClose = false
+          for (const placed of placedNodes) {
+            const distance = Math.sqrt(
+              Math.pow(x - placed.x, 2) + 
+              Math.pow(y - placed.y, 2) + 
+              Math.pow(z - placed.z, 2)
+            )
+            if (distance < minDistance) {
+              tooClose = true
+              // 충돌 방지를 위해 각도와 반경을 약간 조정 (박스 경계 내에서)
+              const adjustAngle = (attempts * 0.15) % (Math.PI * 2)
+              // 반경 증가를 더 제한하여 박스 경계를 넘지 않도록
+              const maxAllowedRadius = Math.min(halfWidth - safeMargin, halfDepth - safeMargin) * 0.9
+              const adjustRadius = Math.min(maxSafeRadius * 0.3, (attempts * 0.015) % maxSafeRadius)
+              const newRadius = Math.min(sphereRadius + adjustRadius, maxAllowedRadius)
+              
+              x = centerX + Math.cos(theta + adjustAngle) * radius_at_y * newRadius
+              y = centerY + ideaY * Math.max(halfHeight * 0.65, 100) + (attempts % 3 - 1) * minDistance * 0.15
+              z = centerZ + Math.sin(theta + adjustAngle) * radius_at_y * newRadius
+              
+              // 박스 경계 내에 확실히 위치하도록 클리핑 (더 엄격하게)
+              x = Math.max(boxMinX + safeMargin, Math.min(boxMaxX - safeMargin, x))
+              y = Math.max(boxMinY + safeMargin, Math.min(boxMaxY - safeMargin, y))
+              z = Math.max(boxMinZ + safeMargin, Math.min(boxMaxZ - safeMargin, z))
+              break
+            }
+          }
+          if (!tooClose) break
+          attempts++
+        }
+        
+        // 최종 위치가 박스 경계 내에 있는지 확인 및 클리핑 (더 엄격하게)
+        const finalSafeMargin = 50
+        x = Math.max(boxMinX + finalSafeMargin, Math.min(boxMaxX - finalSafeMargin, x))
+        y = Math.max(boxMinY + finalSafeMargin, Math.min(boxMaxY - finalSafeMargin, y))
+        z = Math.max(boxMinZ + finalSafeMargin, Math.min(boxMaxZ - finalSafeMargin, z))
+        
+        placedNodes.push({ x, y, z })
         
         updatedNodes.push({
           ...node,
@@ -315,40 +498,226 @@ const ConnectMapPage = () => {
         },
       })
     })
+    
+    // 키워드가 2개인 노드들을 두 박스의 교집합 위치에 배치 (각 노드마다 고유한 위치 보장)
+    const twoKeywordNodesList = Array.from(twoKeywordNodesMap.values())
+    const twoKeywordPlacedNodes: Array<{ x: number; y: number; z: number }> = []
+    const twoKeywordMinDistance = 350 // 노드 간 최소 거리 증가 (250 -> 350)
+    const intersectionPadding = 150 // 교집합 영역 확장을 위한 padding
+    
+    twoKeywordNodesList.forEach((node, idx) => {
+      if (updatedNodes.find(n => n.id === node.id)) return // 이미 추가된 노드는 스킵
+      
+      const primaryKeyword = node.keywords[0]
+      const secondaryKeyword = node.keywords[1]
+      if (!primaryKeyword || !secondaryKeyword) return
+      
+      const primaryGroup = groups.find(g => g.keyword === primaryKeyword)
+      const secondaryGroup = groups.find(g => g.keyword === secondaryKeyword)
+      
+      if (!primaryGroup || !secondaryGroup) {
+        // 두 그룹이 모두 없으면 원래 위치 유지
+        updatedNodes.push(node)
+        return
+      }
+      
+      // 두 박스의 교집합 계산
+      const box1 = {
+        minX: primaryGroup.position.x - primaryGroup.boxSize.width / 2,
+        maxX: primaryGroup.position.x + primaryGroup.boxSize.width / 2,
+        minY: primaryGroup.position.y - primaryGroup.boxSize.height / 2,
+        maxY: primaryGroup.position.y + primaryGroup.boxSize.height / 2,
+        minZ: primaryGroup.position.z - primaryGroup.boxSize.depth / 2,
+        maxZ: primaryGroup.position.z + primaryGroup.boxSize.depth / 2,
+      }
+      
+      const box2 = {
+        minX: secondaryGroup.position.x - secondaryGroup.boxSize.width / 2,
+        maxX: secondaryGroup.position.x + secondaryGroup.boxSize.width / 2,
+        minY: secondaryGroup.position.y - secondaryGroup.boxSize.height / 2,
+        maxY: secondaryGroup.position.y + secondaryGroup.boxSize.height / 2,
+        minZ: secondaryGroup.position.z - secondaryGroup.boxSize.depth / 2,
+        maxZ: secondaryGroup.position.z + secondaryGroup.boxSize.depth / 2,
+      }
+      
+      // 교집합 영역 계산 (padding 추가하여 영역 확장)
+      const intersectionMinX = Math.max(box1.minX, box2.minX) - intersectionPadding
+      const intersectionMaxX = Math.min(box1.maxX, box2.maxX) + intersectionPadding
+      const intersectionMinY = Math.max(box1.minY, box2.minY) - intersectionPadding
+      const intersectionMaxY = Math.min(box1.maxY, box2.maxY) + intersectionPadding
+      const intersectionMinZ = Math.max(box1.minZ, box2.minZ) - intersectionPadding
+      const intersectionMaxZ = Math.min(box1.maxZ, box2.maxZ) + intersectionPadding
+      
+      let finalPosition: { x: number; y: number; z: number }
+      
+      // 교집합이 존재하는 경우 (박스가 겹치는 경우)
+      if (intersectionMinX < intersectionMaxX && 
+          intersectionMinY < intersectionMaxY && 
+          intersectionMinZ < intersectionMaxZ) {
+        // 교집합 영역 내에서 노드 ID 기반 고유 위치 계산
+        const intersectionCenter = {
+          x: (intersectionMinX + intersectionMaxX) / 2,
+          y: (intersectionMinY + intersectionMaxY) / 2,
+          z: (intersectionMinZ + intersectionMaxZ) / 2,
+        }
+        
+        // 교집합 영역 크기
+        const intersectionWidth = intersectionMaxX - intersectionMinX
+        const intersectionHeight = intersectionMaxY - intersectionMinY
+        const intersectionDepth = intersectionMaxZ - intersectionMinZ
+        
+        // 노드 ID를 기반으로 고유한 시드 생성
+        const nodeSeed = node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+        
+        // 교집합 영역 내에서 구 형태로 배치 (여러 노드가 있을 경우)
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        const uniqueIdx = idx + (nodeSeed % 100) / 1000
+        const ideaY = twoKeywordNodesList.length > 1 ? 1 - (uniqueIdx / (twoKeywordNodesList.length - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
+        const theta = goldenAngle * uniqueIdx + (nodeSeed % 1000) * 0.001
+        
+        // 교집합 영역의 반경 (최소 거리를 고려하여 더 넓게)
+        const maxRadius = Math.min(intersectionWidth, intersectionDepth) / 2 - twoKeywordMinDistance / 2
+        const sphereRadius = Math.max(150, Math.min(maxRadius, 300)) // 최소 반경 150, 최대 300
+        
+        let x = intersectionCenter.x + Math.cos(theta) * radius_at_y * sphereRadius
+        let y = intersectionCenter.y + ideaY * Math.max(intersectionHeight / 2 - twoKeywordMinDistance / 2, 150) * 0.9
+        let z = intersectionCenter.z + Math.sin(theta) * radius_at_y * sphereRadius
+        
+        // 교집합 영역 내에 확실히 위치하도록 클리핑 (더 큰 여유 공간)
+        x = Math.max(intersectionMinX + 100, Math.min(intersectionMaxX - 100, x))
+        y = Math.max(intersectionMinY + 100, Math.min(intersectionMaxY - 100, y))
+        z = Math.max(intersectionMinZ + 100, Math.min(intersectionMaxZ - 100, z))
+        
+        // 이미 배치된 노드들과 충돌 검사
+        let attempts = 0
+        const maxAttempts = 50
+        while (attempts < maxAttempts) {
+          let tooClose = false
+          for (const placed of twoKeywordPlacedNodes) {
+            const distance = Math.sqrt(
+              Math.pow(x - placed.x, 2) + 
+              Math.pow(y - placed.y, 2) + 
+              Math.pow(z - placed.z, 2)
+            )
+            if (distance < twoKeywordMinDistance) {
+              tooClose = true
+              // 충돌 방지를 위해 위치 조정 (더 큰 간격)
+              const adjustAngle = (attempts * 0.3) % (Math.PI * 2)
+              const adjustRadius = Math.min(sphereRadius * 1.5, twoKeywordMinDistance * (attempts * 0.15 + 1))
+              x = intersectionCenter.x + Math.cos(theta + adjustAngle) * radius_at_y * adjustRadius
+              y = intersectionCenter.y + ideaY * Math.max(intersectionHeight / 2, 150) * 0.9 + (attempts % 3 - 1) * twoKeywordMinDistance * 0.3
+              z = intersectionCenter.z + Math.sin(theta + adjustAngle) * radius_at_y * adjustRadius
+              // 클리핑 재적용
+              x = Math.max(intersectionMinX + 100, Math.min(intersectionMaxX - 100, x))
+              y = Math.max(intersectionMinY + 100, Math.min(intersectionMaxY - 100, y))
+              z = Math.max(intersectionMinZ + 100, Math.min(intersectionMaxZ - 100, z))
+              break
+            }
+          }
+          if (!tooClose) break
+          attempts++
+        }
+        
+        finalPosition = { x, y, z }
+      } else {
+        // 교집합이 없는 경우 (박스가 겹치지 않는 경우) 두 박스 중심의 중간 지점
+        const midPoint = {
+          x: (primaryGroup.position.x + secondaryGroup.position.x) / 2,
+          y: (primaryGroup.position.y + secondaryGroup.position.y) / 2,
+          z: (primaryGroup.position.z + secondaryGroup.position.z) / 2,
+        }
+        
+        // 노드 ID 기반으로 약간의 오프셋 추가하여 겹침 방지 (더 큰 오프셋)
+        const nodeSeed = node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        const uniqueIdx = idx + (nodeSeed % 100) / 1000
+        const ideaY = twoKeywordNodesList.length > 1 ? 1 - (uniqueIdx / (twoKeywordNodesList.length - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
+        const theta = goldenAngle * uniqueIdx + (nodeSeed % 1000) * 0.001
+        
+        // 중간 지점 주변에 구 형태로 배치
+        const sphereRadius = twoKeywordMinDistance * 0.8
+        let x = midPoint.x + Math.cos(theta) * radius_at_y * sphereRadius
+        let y = midPoint.y + ideaY * sphereRadius * 0.8
+        let z = midPoint.z + Math.sin(theta) * radius_at_y * sphereRadius
+        
+        // 충돌 검사
+        let attempts = 0
+        while (attempts < 50) {
+          let tooClose = false
+          for (const placed of twoKeywordPlacedNodes) {
+            const distance = Math.sqrt(
+              Math.pow(x - placed.x, 2) + 
+              Math.pow(y - placed.y, 2) + 
+              Math.pow(z - placed.z, 2)
+            )
+            if (distance < twoKeywordMinDistance) {
+              tooClose = true
+              const adjustAngle = (attempts * 0.3) % (Math.PI * 2)
+              const adjustRadius = twoKeywordMinDistance * (attempts * 0.2 + 1)
+              x = midPoint.x + Math.cos(theta + adjustAngle) * radius_at_y * adjustRadius
+              y = midPoint.y + ideaY * adjustRadius * 0.8 + (attempts % 3 - 1) * twoKeywordMinDistance * 0.3
+              z = midPoint.z + Math.sin(theta + adjustAngle) * radius_at_y * adjustRadius
+              break
+            }
+          }
+          if (!tooClose) break
+          attempts++
+        }
+        
+        finalPosition = { x, y, z }
+      }
+      
+      twoKeywordPlacedNodes.push(finalPosition)
+      
+      updatedNodes.push({
+        ...node,
+        position: finalPosition,
+      })
+    })
 
     setKeywordGroups(groups)
 
     // 연결선 생성
     const conns: Connection[] = []
     
-    // 같은 키워드 내부 연결 (박스 내부에 재배치된 노드들 사용)
+    // 같은 키워드 내부 연결 (유사도 기반)
     const nodesForConnections = updatedNodes.length > 0 ? updatedNodes : nodes
+    const SIMILARITY_THRESHOLD_SAME = 0.15 // 같은 키워드 내부 연결 임계값 (15%)
+    const SIMILARITY_THRESHOLD_CROSS = 0.20 // 다른 키워드 간 연결 임계값 (20%)
+    
     groups.forEach(group => {
       const groupNodes = nodesForConnections.filter((n: IdeaNode) => n.keyword === group.keyword)
       for (let i = 0; i < groupNodes.length; i++) {
         for (let j = i + 1; j < groupNodes.length; j++) {
-          // 일부만 연결 (너무 많으면 시각적 혼잡)
-          if (Math.random() > 0.7) {
+          // 유사도 계산
+          const similarity = calculateSimilarity(groupNodes[i], groupNodes[j])
+          
+          // 유사도가 임계값 이상이면 연결
+          if (similarity >= SIMILARITY_THRESHOLD_SAME) {
+            // 유사도가 낮을수록 점선 확률 증가
+            const isDotted = similarity < 0.25 // 유사도가 0.25 미만이면 점선
             conns.push({
               source: groupNodes[i],
               target: groupNodes[j],
               type: 'same-keyword',
-              isDotted: Math.random() > 0.5, // 일부는 점선
+              isDotted,
             })
           }
         }
       }
     })
 
-    // 다른 키워드 간 연결 (공통 키워드를 가진 아이디어들)
+    // 다른 키워드 간 연결 (유사도 기반)
     for (let i = 0; i < nodesForConnections.length; i++) {
       for (let j = i + 1; j < nodesForConnections.length; j++) {
         if (nodesForConnections[i].keyword !== nodesForConnections[j].keyword) {
-          // 두 아이디어가 공통 키워드를 가지고 있는지 확인
-          const commonKeywords = nodesForConnections[i].keywords.filter((k: string) => 
-            nodesForConnections[j].keywords.includes(k)
-          )
-          if (commonKeywords.length > 0 && Math.random() > 0.85) {
+          // 유사도 계산
+          const similarity = calculateSimilarity(nodesForConnections[i], nodesForConnections[j])
+          
+          // 유사도가 임계값 이상이면 연결 (유사한 맥락이나 내용)
+          if (similarity >= SIMILARITY_THRESHOLD_CROSS) {
             conns.push({
               source: nodesForConnections[i],
               target: nodesForConnections[j],
@@ -877,7 +1246,7 @@ const ConnectMapPage = () => {
                 points={points}
                 fill="none"
                 stroke={color}
-                strokeWidth="1"
+                strokeWidth="0.5"
                 strokeOpacity={strokeOpacity}
                 strokeLinejoin="miter"
                 strokeMiterlimit="10"
@@ -890,27 +1259,6 @@ const ConnectMapPage = () => {
     )
   }
   
-  // 자동 회전 애니메이션
-  useEffect(() => {
-    if (!autoRotate) return
-
-    let frameId: number
-    let lastTime = performance.now()
-    const animate = (currentTime: number) => {
-      const delta = currentTime - lastTime
-      lastTime = currentTime
-      
-      setAnimationFrame(prev => prev + 1)
-      setRotation(prev => ({
-        ...prev,
-        y: prev.y + 0.1 * (delta / 16), // 프레임 독립적인 회전
-      }))
-      frameId = requestAnimationFrame(animate)
-    }
-
-    frameId = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(frameId)
-  }, [autoRotate])
   
   // 드래그 중에는 애니메이션 일시정지
   useEffect(() => {
@@ -976,11 +1324,12 @@ const ConnectMapPage = () => {
                     left: `${tagTopProjected.x}px`,
                     top: `${tagTopProjected.y}px`,
                     backgroundColor: group.color,
-                    color: '#ffffff',
+                    color: GRAY_COLORS['800'] || '#1e1e1e',
                     transform: `translate(-50%, -50%) scale(${Math.max(1.0, tagTopProjected.scale)})`,
                     transformOrigin: 'center',
                     zIndex: 1000, // 키워드 태그는 가장 앞에
                     pointerEvents: 'auto',
+                    borderRadius: 0,
                   }}
                 >
                   {group.keyword}
@@ -1000,7 +1349,12 @@ const ConnectMapPage = () => {
             .map(({ node, projected: nodeProjected, floatOffset }) => {
               const isHovered = hoveredIdea === node.id
               const group = keywordGroups.find(g => g.keyword === node.keyword)
-
+              
+              // 키워드가 2개인지 확인
+              const hasTwoKeywords = node.keywords && node.keywords.length >= 2
+              const secondKeyword = hasTwoKeywords ? node.keywords[1] : null
+              const secondGroup = secondKeyword ? keywordGroups.find(g => g.keyword === secondKeyword) : null
+              
               // 노드 크기에 따른 스타일 결정
               const nodeSize = node.nodeSize || 'small'
               let nodeHeight = 18 // small
@@ -1021,9 +1375,15 @@ const ConnectMapPage = () => {
                 nodeWidth = '154px'
               }
 
-              const baseScale = Math.max(0.5, Math.min(1.5, nodeProjected.scale))
+              // 키워드 태그와 동일한 scale 범위 사용 (텍스트 선명도 유지)
+              const baseScale = Math.max(1.0, Math.min(1.5, nodeProjected.scale))
               const hoverScale = isHovered ? 1.05 : 1
               const finalScale = baseScale * hoverScale
+              
+              // 그라데이션 테두리를 위한 색상
+              const primaryColor = group?.color || KEYWORD_COLORS[node.keyword] || '#666666'
+              const secondaryColor = secondGroup?.color || KEYWORD_COLORS[secondKeyword || ''] || primaryColor
+              const useGradient = hasTwoKeywords && secondGroup && primaryColor !== secondaryColor && secondKeyword
 
               return (
                 <div
@@ -1035,32 +1395,70 @@ const ConnectMapPage = () => {
                     top: `${nodeProjected.y + floatOffset}px`,
                     transform: `translate(-50%, -50%) scale(${finalScale})`,
                     transformOrigin: 'center center',
-                    zIndex: isHovered ? 200 : Math.floor(nodeProjected.z / 5),
-                    willChange: isDragging ? 'transform, left, top' : 'transform',
+                    zIndex: isHovered ? 10000 : Math.floor(nodeProjected.z * 10) + 100, // 더 세밀한 z-index 계산
+                    willChange: isDragging ? 'transform, left, top' : 'auto',
                     pointerEvents: 'auto',
                     transition: isDragging ? 'none' : 'transform 0.15s ease-out, box-shadow 0.15s ease',
+                    // 텍스트 선명도 개선 - scale이 1.0 이상일 때도 선명하게
+                    WebkitFontSmoothing: 'antialiased',
+                    MozOsxFontSmoothing: 'grayscale',
                   }}
                   onMouseEnter={() => !isDragging && setHoveredIdea(node.id)}
                   onMouseLeave={() => setHoveredIdea(null)}
                   onClick={() => !isDragging && navigate(`/idea/${node.id}`)}
                 >
-                  {/* 키워드 색상 테두리만 사용 */}
-                  <div
-                    className={`idea-node idea-node-${nodeSize}`}
-                    style={{
-                      backgroundColor: GRAY_COLORS['100'] || '#dddddd',
-                      borderColor: group?.color || '#666666',
-                      color: GRAY_COLORS['800'] || '#1e1e1e',
-                      height: `${nodeHeight}px`,
-                      fontSize: `${nodeFontSize}px`,
-                      width: nodeWidth,
-                      boxShadow: isHovered 
-                        ? `0px 0px 10px rgba(0, 0, 0, 0.4), 0 0 20px ${group?.color || '#666'}60`
-                        : `0px 0px 10px rgba(0, 0, 0, 0.25)`,
-                    }}
-                  >
-                    {node.title.substring(0, 30)}{node.title.length > 30 ? '...' : ''}
-                  </div>
+                  {useGradient ? (
+                    // 그라데이션 테두리: 외부 div에 그라데이션 배경, 내부 div로 테두리 효과
+                    <div
+                      style={{
+                        background: `linear-gradient(to right, ${primaryColor}, ${secondaryColor})`,
+                        padding: '2px',
+                        height: `${nodeHeight + 4}px`,
+                        width: nodeWidth === 'auto' ? 'auto' : `calc(${nodeWidth} + 4px)`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: isHovered 
+                          ? `0px 0px 10px rgba(0, 0, 0, 0.4), 0 0 20px ${primaryColor}60`
+                          : `0px 0px 10px rgba(0, 0, 0, 0.25)`,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <div
+                        className={`idea-node idea-node-${nodeSize}`}
+                        style={{
+                          backgroundColor: GRAY_COLORS['100'] || '#dddddd',
+                          color: GRAY_COLORS['800'] || '#1e1e1e',
+                          height: `${nodeHeight}px`,
+                          fontSize: `${nodeFontSize}px`,
+                          width: nodeWidth,
+                          border: 'none',
+                          padding: '2px 22px',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <span className="idea-node-text">{node.title}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    // 단색 테두리
+                    <div
+                      className={`idea-node idea-node-${nodeSize}`}
+                      style={{
+                        backgroundColor: GRAY_COLORS['100'] || '#dddddd',
+                        borderColor: primaryColor,
+                        color: GRAY_COLORS['800'] || '#1e1e1e',
+                        height: `${nodeHeight}px`,
+                        fontSize: `${nodeFontSize}px`,
+                        width: nodeWidth,
+                        boxShadow: isHovered 
+                          ? `0px 0px 10px rgba(0, 0, 0, 0.4), 0 0 20px ${primaryColor}60`
+                          : `0px 0px 10px rgba(0, 0, 0, 0.25)`,
+                      }}
+                    >
+                      <span className="idea-node-text">{node.title}</span>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1069,32 +1467,29 @@ const ConnectMapPage = () => {
         {/* 컨트롤 버튼 */}
         <div className="map-controls">
           <button className="control-btn" onClick={handleZoomIn} title="Zoom In">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" />
-              <circle cx="8" cy="8" r="1" fill="currentColor" />
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" shapeRendering="geometricPrecision">
+              <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 14L11.1 11.1" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M7.33333 5.33334V9.33334" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M5.33333 7.33334H9.33333" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           <button className="control-btn" onClick={handleZoomOut} title="Zoom Out">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3 8h10" stroke="currentColor" strokeWidth="2" />
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" shapeRendering="geometricPrecision">
+              <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 14L11.1 11.1" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M5.33333 7.33334H9.33333" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
           <button className="control-btn" onClick={handleFitToScreen} title="Fit to Screen">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 6h4V2M10 2v4h4M14 10h-4v4M6 14v-4H2" stroke="currentColor" strokeWidth="2" />
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" shapeRendering="geometricPrecision">
+              <path d="M10 2H14V6" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14 2L9.33333 6.66667" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2 14L6.66667 9.33333" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6 14H2V10" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-          </button>
-          <button 
-            className={`control-btn ${autoRotate ? 'active' : ''}`} 
-            onClick={() => setAutoRotate(!autoRotate)} 
-            title="Auto Rotate"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              <path d="M8 2 L10 6 L8 10 L6 6 Z" fill="currentColor" />
-            </svg>
-          </button>
-        </div>
+        </button>
+      </div>
 
         {/* Add New Idea 버튼 */}
         <button className="add-idea-btn" onClick={() => navigate('/')}>

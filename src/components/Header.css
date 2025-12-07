@@ -73,7 +73,7 @@
 }
 
 .signin-button {
-  background: transparent;
+  background-color: #dddddd;
   border: 1px solid #949494;
   height: 34px;
   padding: 0 21px;
@@ -81,19 +81,20 @@
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
-  color: #666666;
+  color: #444444;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
 .signin-button:hover {
-  background-color: #949494;
-  color: #1e1e1e;
+  background-color: #cccccc;
+  border-color: #444444;
+  color: #444444;
 }
 
 @media (max-width: 1200px) {
