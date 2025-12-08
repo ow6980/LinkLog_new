@@ -1,14 +1,46 @@
 import { useNavigate } from 'react-router-dom'
 import BookmarkIcon from './BookmarkIcon'
-import KeywordTag from './KeywordTag'
 import './BookmarkCard.css'
+import variablesData from '../variables.json'
+
+// Color helpers
+const rgbToHex = (r: number, g: number, b: number): string => {
+  const toHex = (n: number) => {
+    const hex = Math.round(n * 255).toString(16)
+    return hex.length === 1 ? '0' + hex : hex
+  }
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+const extractTagColors = () => {
+  const tagColors: Record<string, string> = {}
+  variablesData.variables.forEach((variable: any) => {
+    if (variable.name.startsWith('color/tag/')) {
+      const colorName = variable.name.replace('color/tag/', '')
+      const rgb = variable.resolvedValuesByMode['12:0'].resolvedValue
+      tagColors[colorName] = rgbToHex(rgb.r, rgb.g, rgb.b)
+    }
+  })
+  return tagColors
+}
+
+const TAG_COLORS = extractTagColors()
+const KEYWORD_COLORS: Record<string, string> = {
+  Technology: TAG_COLORS.red || '#ff4848',
+  Innovation: TAG_COLORS.orange || '#ffae2b',
+  Data: TAG_COLORS.yellow || '#ffff06',
+  Design: TAG_COLORS.skyblue || '#0de7ff',
+  Business: TAG_COLORS.violet || '#8a38f5',
+  Research: TAG_COLORS.green || '#77ff00',
+  Development: TAG_COLORS.blue || '#0d52ff',
+}
 
 interface Idea {
   id: string
   title: string
-  content: string
+  content: string | null
   keywords: string[]
-  createdAt: string
+  created_at: string
   bookmarked?: boolean
 }
 
@@ -56,11 +88,20 @@ const BookmarkCard = ({
       <div className="idea-title">{idea.title}</div>
       <div className="keywords-container">
         {idea.keywords.slice(0, 2).map((keyword, index) => (
-          <KeywordTag key={index} keyword={keyword} index={index} />
+          <span
+            key={index}
+            className="keyword-tag"
+            style={{
+              backgroundColor: KEYWORD_COLORS[keyword] || '#666666',
+              color: '#1e1e1e',
+            }}
+          >
+            {keyword}
+          </span>
         ))}
       </div>
       <div className="card-footer">
-        <div className="idea-date">{formatDate(idea.createdAt)}</div>
+        <div className="idea-date">{formatDate(idea.created_at)}</div>
         <div className="connected-count">
           <div className="dots-icon">
             <span></span>

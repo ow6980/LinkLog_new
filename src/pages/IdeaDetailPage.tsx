@@ -22,6 +22,26 @@ interface Idea {
   user_id?: string
 }
 
+// 텍스트 유사도 계산 함수 (0 ~ 1 사이의 값)
+const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
+  const text1 = `${idea1.title} ${idea1.content || ''}`.toLowerCase()
+  const text2 = `${idea2.title} ${idea2.content || ''}`.toLowerCase()
+  
+  const words1 = new Set(text1.match(/[a-z0-9]+/g) || [])
+  const words2 = new Set(text2.match(/[a-z0-9]+/g) || [])
+  
+  const commonWords = new Set([...words1].filter(word => words2.has(word)))
+  const union = new Set([...words1, ...words2])
+  
+  if (union.size === 0) return 0
+  
+  return commonWords.size / union.size
+}
+
+// 유사도 임계값
+const SIMILARITY_THRESHOLD_SAME = 0.15 // 같은 키워드 내부 연결 임계값 (15%)
+const SIMILARITY_THRESHOLD_CROSS = 0.20 // 다른 키워드 간 연결 임계값 (20%)
+
 const IdeaDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -184,26 +204,37 @@ const IdeaDetailPage = () => {
     return `${year}. ${month}. ${day}.  |  ${displayHours}:${minutes} ${ampm}`
   }
 
-  // ... (render logic)
+  // Early return if idea is not loaded
+  if (!idea) {
+    return (
+      <div className="idea-detail-page">
+        <div className="loading">Loading...</div>
+      </div>
+    )
+  }
 
-            {/* Meta Data Section */}
-            <div className="detail-section meta-data-section">
-              <h2 className="section-title">Meta Data</h2>
-              <div className="meta-data-list">
-                <div className="meta-data-item">
-                  <span className="meta-data-label">Updated Time</span>
-                  <span className="meta-data-value">
-                    {formatDate(idea.updated_at || idea.created_at)}
-                  </span>
-                </div>
-                {/* ... */}
-              </div>
-            </div>
-
-            {/* ... */}
-  // ... (rest of the file)
+  return (
+    <div className="idea-detail-page">
+      {/* Render content here */}
+      <div className="detail-section meta-data-section">
+        <h2 className="section-title">Meta Data</h2>
+        <div className="meta-data-list">
+          <div className="meta-data-item">
+            <span className="meta-data-label">Updated Time</span>
+            <span className="meta-data-value">
+              {formatDate(idea.updated_at || idea.created_at)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default IdeaDetailPage
 
-export default IdeaDetailPage
+
+
+
+
+
