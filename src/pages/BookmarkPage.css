@@ -1,126 +1,293 @@
 .bookmark-page {
   width: 100%;
   min-height: calc(100vh - 60px);
-  background-color: var(--bg-primary);
-  padding: 40px 0;
+  background-color: var(--bg-primary, #dddddd);
+  padding: 60px 48px;
+  box-sizing: border-box;
 }
 
 .bookmark-container {
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1512px;
   margin: 0 auto;
-}
-
-.page-title {
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 32px;
-}
-
-.filter-section {
-  margin-bottom: 32px;
-}
-
-.filter-buttons {
   display: flex;
+  flex-direction: column;
+  gap: 64px;
+}
+
+.bookmark-header {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  flex-wrap: wrap;
+  border-bottom: 1px solid var(--text-primary, #1e1e1e);
+  padding-bottom: 0;
+  height: 69px;
+  justify-content: center;
 }
 
-.filter-btn {
-  padding: 8px 16px;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 14px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
+.bookmark-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
 }
 
-.filter-btn:hover {
-  background-color: var(--bg-primary);
-  border-color: var(--header-bg);
+.title-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  height: 25px;
 }
 
-.filter-btn.active {
-  background-color: var(--header-bg);
-  color: white;
-  border-color: var(--header-bg);
+.title-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.ideas-grid {
+.bookmark-title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 100%;
+  letter-spacing: 0.144px;
+  color: var(--text-primary, #1e1e1e);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.bookmark-subtitle {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 100%;
+  color: var(--text-primary, #1e1e1e);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.bookmark-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 16px;
+  align-items: flex-start;
+  width: 100%;
 }
 
-.idea-card {
-  background-color: var(--bg-secondary);
-  padding: 24px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
+.bookmark-card {
+  width: 100%;
+  min-width: 350px;
+  background: var(--bg-primary, #dddddd);
+  border: 1px solid var(--text-primary, #1e1e1e);
+  padding: 15px 15px 20px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
 }
 
-.idea-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.card-number {
+  display: flex;
+  align-items: center;
+}
+
+.card-number-text {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 13.5px;
+  letter-spacing: 0.054px;
+  text-transform: uppercase;
+  color: var(--text-primary, #1e1e1e);
+}
+
+.bookmark-icon-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.bookmark-icon-wrapper {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+
+.bookmark-base {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.bookmark-check {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+.card-content {
+  display: flex;
+  align-items: center;
+  height: 23px;
+  width: 100%;
+  gap: 10px;
 }
 
 .idea-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 12px;
-}
-
-.idea-content {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: 16px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: normal;
+  letter-spacing: 0.144px;
+  color: var(--text-primary, #1e1e1e);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
 }
 
 .idea-keywords {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
 }
 
-.keyword-tag.small {
-  font-size: 11px;
-  padding: 3px 8px;
-  background-color: var(--header-bg);
-  color: white;
-  border-radius: 12px;
+.keyword-tag-bookmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  height: 22px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 16px;
+  letter-spacing: 0.6px;
+  text-transform: capitalize;
+  box-sizing: border-box;
+  border: none;
+  color: var(--text-primary, #1e1e1e) !important; /* Force text color to gray/800 as per design */
+}
+
+.idea-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 13px;
+  margin-top: auto;
 }
 
 .idea-date {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 13.5px;
+  letter-spacing: 0.054px;
+  color: var(--text-primary, #1e1e1e);
+  white-space: nowrap;
+}
+
+.connected-ideas-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  height: 13.5px;
+}
+
+.dot-icon {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  height: 4px;
+}
+
+.dot {
+  width: 4px;
+  height: 4px;
+  background-color: var(--text-primary, #1e1e1e);
+}
+
+.dot-bar {
+  flex: 1;
+  min-width: 1px;
+  height: 4px;
+  background-color: var(--text-primary, #1e1e1e);
+}
+
+.count-text {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 13.5px;
+  letter-spacing: 0.054px;
+  color: var(--text-primary, #1e1e1e);
 }
 
 .empty-state {
   grid-column: 1 / -1;
+  border: 1px dashed var(--text-primary, #1e1e1e);
+  padding: 72px 24px;
+  background: rgba(255, 255, 255, 0.5);
   text-align: center;
-  padding: 80px 20px;
-  color: var(--text-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-secondary, #666666);
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 500;
   font-size: 16px;
+  line-height: 24px;
+  width: 100%;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .bookmark-page {
-    padding: 20px 0;
+    padding: 40px 24px;
+  }
+  
+  .bookmark-grid {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .bookmark-page {
+    padding: 32px 16px;
   }
 
-  .ideas-grid {
+  .bookmark-grid {
     grid-template-columns: 1fr;
   }
 
-  .page-title {
-    font-size: 24px;
+  .title-row {
+    height: auto;
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import variablesData from '../variables.json'
@@ -62,12 +62,38 @@ interface Idea {
   bookmarked?: boolean
 }
 
+type SortOrder = 'desc' | 'asc'
+
+// 텍스트 유사도 계산 함수 (ConnectMapPage와 동일 로직)
+const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
+  const text1 = `${idea1.title} ${idea1.content}`.toLowerCase()
+  const text2 = `${idea2.title} ${idea2.content}`.toLowerCase()
+  
+  const words1 = new Set(text1.match(/[a-z0-9]+/g) || [])
+  const words2 = new Set(text2.match(/[a-z0-9]+/g) || [])
+  
+  const commonWords = new Set([...words1].filter(word => words2.has(word)))
+  const union = new Set([...words1, ...words2])
+  
+  if (union.size === 0) return 0
+  
+  return commonWords.size / union.size
+}
+
 const BookmarkPage = () => {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
   const [ideas, setIdeas] = useState<Idea[]>([])
-  const [filteredIdeas, setFilteredIdeas] = useState<Idea[]>([])
-  const [filter, setFilter] = useState<string>('all')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [sortOrder] = useState<SortOrder>('desc')
+
+  const sortIdeas = useCallback((list: Idea[], order: SortOrder) => {
+    return [...list].sort((a, b) => {
+      const aTime = new Date(a.createdAt).getTime()
+      const bTime = new Date(b.createdAt).getTime()
+      return order === 'desc' ? bTime - aTime : aTime - bTime
+    })
+  }, [])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -79,34 +105,39 @@ const BookmarkPage = () => {
     if (stored) {
       const allIdeas = JSON.parse(stored) as Idea[]
       const bookmarked = allIdeas.filter((idea) => idea.bookmarked)
-      setIdeas(bookmarked)
-      setFilteredIdeas(bookmarked)
+      const sortedBookmarked = sortIdeas(bookmarked, 'desc')
+      setIdeas(sortedBookmarked)
     }
-  }, [])
+  }, [isAuthenticated, navigate, sortIdeas])
 
-  useEffect(() => {
-    if (filter === 'all') {
-      setFilteredIdeas(ideas)
-    } else {
-      setFilteredIdeas(
-        ideas.filter((idea) => idea.keywords.includes(filter))
-      )
-    }
-  }, [filter, ideas])
-
-  // 연결된 아이디어 수 계산 (공통 키워드를 가진 아이디어들)
+  // 연결된 아이디어 수 계산 (P2 ConnectMapPage 로직 기반)
   const getConnectedIdeasCount = (idea: Idea): number => {
     const stored = localStorage.getItem('ideas')
     if (!stored) return 0
     
     try {
       const allIdeas = JSON.parse(stored) as Idea[]
-      const connected = allIdeas.filter(otherIdea => {
-        if (otherIdea.id === idea.id) return false
-        // 공통 키워드가 있으면 연결됨
-        return idea.keywords.some(keyword => otherIdea.keywords.includes(keyword))
+      // 자기 자신 제외
+      const otherIdeas = allIdeas.filter(i => i.id !== idea.id)
+      
+      let count = 0
+      const myKeyword = idea.keywords[0] || 'Technology'
+      
+      otherIdeas.forEach(otherIdea => {
+        const otherKeyword = otherIdea.keywords[0] || 'Technology'
+        const similarity = calculateSimilarity(idea, otherIdea)
+        
+        // 같은 키워드: 유사도 0.15 이상이면 연결
+        if (myKeyword === otherKeyword) {
+           if (similarity >= 0.15) count++
+        } 
+        // 다른 키워드: 유사도 0.20 이상이면 연결
+        else {
+           if (similarity >= 0.20) count++
+        }
       })
-      return connected.length
+      
+      return count
     } catch {
       return 0
     }
@@ -130,12 +161,8 @@ const BookmarkPage = () => {
         
         // 현재 상태 업데이트
         const bookmarked = updatedIdeas.filter((idea) => idea.bookmarked)
-        setIdeas(bookmarked)
-        if (filter === 'all') {
-          setFilteredIdeas(bookmarked)
-        } else {
-          setFilteredIdeas(bookmarked.filter((idea) => idea.keywords.includes(filter)))
-        }
+        const sortedBookmarked = sortIdeas(bookmarked, sortOrder)
+        setIdeas(sortedBookmarked)
       } catch {
         // 에러 처리
       }
@@ -154,55 +181,82 @@ const BookmarkPage = () => {
     return `${year}.${month}.${day} | ${displayHours}:${minutes} ${ampm}`
   }
 
+  const getContentPreview = (content?: string): string => {
+    if (!content) return ''
+    const trimmed = content.trim()
+    if (trimmed.length <= 140) return trimmed
+    return `${trimmed.slice(0, 140)}...`
+  }
+
   return (
     <div className="bookmark-page">
       <div className="bookmark-container">
-        <h1 className="page-title">북마크</h1>
-        
-        <div className="filter-section">
-          <div className="filter-buttons">
-            <button
-              className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-              onClick={() => setFilter('all')}
-            >
-              전체
-            </button>
-            {/* 키워드 필터는 동적으로 생성 */}
+        <div className="bookmark-header">
+          <div className="bookmark-title-block">
+            <div className="title-row">
+              <div className="title-icon">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M7 7C7 6.44772 7.44772 6 8 6H20C20.5523 6 21 6.44772 21 7V21C21 21.3746 20.7039 21.7038 20.3518 21.8512C19.9996 21.9986 19.5997 21.9602 19.28 21.7467L14 18.0833L8.72 21.7467C8.40028 21.9602 8.00038 21.9986 7.64822 21.8512C7.29606 21.7038 7 21.3746 7 21V7Z" fill="#1E1E1E"/>
+                </svg>
+              </div>
+              <h1 className="bookmark-title">Bookmarked Nodes</h1>
+            </div>
+            <p className="bookmark-subtitle">
+              {ideas.length} IDEA SAVED
+            </p>
           </div>
         </div>
 
-        <div className="ideas-grid">
-          {filteredIdeas.length > 0 ? (
-            filteredIdeas.map((idea, index) => {
+        <div className="bookmark-grid">
+          {ideas.length > 0 ? (
+            ideas.map((idea, index) => {
               const connectedCount = getConnectedIdeasCount(idea)
+              const contentPreview = getContentPreview(idea.content)
               return (
-                <div
+                <article
                   key={idea.id}
-                  className="idea-card"
+                  className="bookmark-card"
                   onClick={() => handleCardClick(idea.id)}
                 >
-                  {/* 상단: 번호 + 북마크 아이콘 */}
-                  <div className="idea-card-top">
-                    <div className="idea-number">No. {index + 1}</div>
+                  <div className="card-top">
+                    <div className="card-number">
+                      <span className="card-number-text">No. {index + 1}</span>
+                    </div>
                     <button
-                      className="bookmark-icon-btn"
+                      className={`bookmark-icon-btn ${idea.bookmarked ? 'active' : ''}`}
                       onClick={(e) => handleBookmarkToggle(e, idea)}
+                      aria-label="bookmark toggle"
                     >
-                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                        <path
-                          d="M7 7C7 6.44772 7.44772 6 8 6H20C20.5523 6 21 6.44772 21 7V21C21 21.3746 20.7039 21.7038 20.3518 21.8512C19.9996 21.9986 19.5997 21.9602 19.28 21.7467L14 18.0833L8.72 21.7467C8.40028 21.9602 8.00038 21.9986 7.64822 21.8512C7.29606 21.7038 7 21.3746 7 21V7Z"
-                          stroke={GRAY_COLORS['800'] || '#1e1e1e'}
-                          strokeWidth="1.5"
-                          fill={idea.bookmarked ? GRAY_COLORS['800'] || '#1e1e1e' : 'none'}
-                        />
-                      </svg>
+                      {/* Updated Bookmark Icon from Figma 8:4628 */}
+                      <div className="bookmark-icon-wrapper">
+                        {/* Base flag shape */}
+                        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="bookmark-base">
+                          <path d="M7 7C7 6.44772 7.44772 6 8 6H20C20.5523 6 21 6.44772 21 7V21C21 21.3746 20.7039 21.7038 20.3518 21.8512C19.9996 21.9986 19.5997 21.9602 19.28 21.7467L14 18.0833L8.72 21.7467C8.40028 21.9602 8.00038 21.9986 7.64822 21.8512C7.29606 21.7038 7 21.3746 7 21V7Z" 
+                            stroke={GRAY_COLORS['800'] || '#1E1E1E'}
+                            strokeWidth="1.5" 
+                            fill="none" // Always outline, checkmark indicates 'marked'
+                          />
+                        </svg>
+                        
+                        {/* Checkmark - visible when bookmarked */}
+                        {idea.bookmarked && (
+                          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="bookmark-check">
+                            <path d="M10.5 11.6667L12.8333 14L17.5 9.33333" stroke={GRAY_COLORS['800'] || '#1E1E1E'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
                     </button>
                   </div>
 
-                  {/* 아이디어 제목 */}
-                  <h3 className="idea-title">{idea.title}</h3>
+                  <div className="card-content">
+                    <h3 className="idea-title">{idea.title}</h3>
+                  </div>
 
-                  {/* 키워드 태그들 */}
+                  {contentPreview && (
+                    <div className="idea-snippet-wrapper">
+                    </div>
+                  )}
+
                   {idea.keywords.length > 0 && (
                     <div className="idea-keywords">
                       {idea.keywords.map((keyword, idx) => (
@@ -210,7 +264,8 @@ const BookmarkPage = () => {
                           key={idx}
                           className="keyword-tag-bookmark"
                           style={{
-                            backgroundColor: KEYWORD_COLORS[keyword] || '#666666'
+                            backgroundColor: KEYWORD_COLORS[keyword] || '#666666',
+                            color: '#1e1e1e'
                           }}
                         >
                           {keyword}
@@ -219,24 +274,24 @@ const BookmarkPage = () => {
                     </div>
                   )}
 
-                  {/* 하단: 날짜/시간 + 연결된 아이디어 수 */}
                   <div className="idea-card-bottom">
                     <div className="idea-date">{formatDate(idea.createdAt)}</div>
                     <div className="connected-ideas-count">
-                      <svg width="14" height="4" viewBox="0 0 14 4" fill="none">
-                        <circle cx="2" cy="2" r="2" fill={GRAY_COLORS['800'] || '#1e1e1e'} />
-                        <circle cx="7" cy="2" r="2" fill={GRAY_COLORS['800'] || '#1e1e1e'} />
-                        <circle cx="12" cy="2" r="2" fill={GRAY_COLORS['800'] || '#1e1e1e'} />
-                      </svg>
-                      <span>{connectedCount}</span>
+                      <div className="dot-icon">
+                         <div className="dot"></div>
+                         <div className="dot"></div>
+                         <div className="dot-bar"></div>
+                      </div>
+                      <span className="count-text">{connectedCount}</span>
                     </div>
                   </div>
-                </div>
+                </article>
               )
             })
           ) : (
             <div className="empty-state">
               <p>북마크된 아이디어가 없습니다.</p>
+              <span>아이디어 상세 페이지에서 북마크를 추가해 보세요.</span>
             </div>
           )}
         </div>
