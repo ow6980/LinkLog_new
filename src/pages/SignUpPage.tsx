@@ -29,13 +29,14 @@ const SignUpPage = () => {
       return
     }
 
-    const success = await signup(email, password, username)
+    const result = await signup(email, password, username)
     setIsLoading(false)
 
-    if (success) {
-      navigate('/')
+    if (result.success) {
+      alert('회원가입 확인 메일이 발송되었습니다. 이메일을 확인해주세요.')
+      navigate('/signin')
     } else {
-      setError('이미 존재하는 이메일입니다.')
+      setError(result.error || '회원가입에 실패했습니다.')
     }
   }
 

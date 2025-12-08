@@ -22,7 +22,7 @@
 /* Title Section */
 .detail-title-section {
   width: 100%;
-  height: 69px;
+  height: 68px;
   border-bottom: 1px solid var(--text-primary, #1e1e1e);
   position: relative;
   display: flex;
@@ -55,8 +55,9 @@
 }
 
 .detail-title {
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', sans-serif;
   font-weight: 500;
+  font-style: normal;
   font-size: 24px;
   line-height: 100%;
   letter-spacing: 0.144px;
@@ -67,6 +68,19 @@
   align-items: center;
 }
 
+.detail-title h1 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 500;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 100%;
+  letter-spacing: 0.144px;
+  color: var(--text-primary, #1e1e1e);
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+
 .back-button {
   display: flex;
   align-items: center;
@@ -75,16 +89,18 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', sans-serif;
   font-weight: 400;
+  font-style: normal;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 100%;
   text-transform: uppercase;
   color: var(--text-primary, #1e1e1e);
   transition: opacity 0.2s;
   height: 16px;
   margin-left: 0;
   margin-right: auto;
+  white-space: nowrap;
 }
 
 .back-button:hover {
@@ -94,6 +110,11 @@
 .back-button svg {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
+}
+
+.back-button span {
+  margin-left: 8px;
 }
 
 .delete-button {
@@ -101,10 +122,11 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', sans-serif;
   font-weight: 400;
+  font-style: normal;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 100%;
   text-transform: uppercase;
   color: var(--text-primary, #1e1e1e);
   transition: opacity 0.2s;
@@ -115,6 +137,7 @@
   justify-content: flex-end;
   margin-left: auto;
   margin-right: 0;
+  white-space: nowrap;
 }
 
 .delete-button:hover {
@@ -260,11 +283,12 @@
 .idea-content-input-wrapper {
   width: 100%;
   border: 1px solid var(--text-primary, #1e1e1e);
-  padding: 20px 24px;
+  padding: 20px 28px;
   display: flex;
   align-items: flex-start;
   box-sizing: border-box;
   background: transparent;
+  min-height: 95px;
 }
 
 /* Keywords Section */
@@ -299,7 +323,8 @@
   padding: 0 20px;
   height: 34px;
   border-radius: 0;
-  background-color: var(--text-primary, #1e1e1e);
+  background-color: var(--color-tag-red, #ff4848);
+  flex-shrink: 0;
 }
 
 .keyword-chip-text {
@@ -351,6 +376,7 @@
   outline: none;
   display: flex;
   align-items: center;
+  width: 463px;
 }
 
 .keyword-input::placeholder {
@@ -496,6 +522,10 @@
   box-sizing: border-box;
 }
 
+.detailed-notes-input::placeholder {
+  color: var(--text-primary, #1e1e1e);
+}
+
 /* Detailed Notes 스크롤바 스타일링 */
 .detailed-notes-input::-webkit-scrollbar {
   width: 8px;
@@ -557,7 +587,7 @@
 
 .reference-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   height: 43px;
   padding: 10px 24px;
@@ -568,7 +598,7 @@
 }
 
 .reference-link {
-  width: 598px;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -577,8 +607,8 @@
   overflow: hidden;
   cursor: pointer;
   transition: opacity 0.2s;
-  flex-shrink: 0;
   min-width: 0;
+  width: 598px;
 }
 
 .reference-link:hover {
@@ -616,10 +646,11 @@
   flex-shrink: 0;
   transition: opacity 0.2s;
   color: var(--text-primary, #1e1e1e);
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
-  font-weight: 400;
-  font-size: 20px;
-  line-height: 22.75px;
+}
+
+.reference-remove-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .reference-remove-btn:hover {

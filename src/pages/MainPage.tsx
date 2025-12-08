@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../supabaseClient'
 import './MainPage.css'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
 
 const MainPage = () => {
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const [ideaInput, setIdeaInput] = useState('')
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
@@ -89,7 +90,7 @@ const MainPage = () => {
 
 
   const handleKeywordSelect = (keyword: string) => {
-    if (!selectedKeywords.includes(keyword)) {
+    if (!selectedKeywords.includes(keyword) && selectedKeywords.length < 2) {
       setSelectedKeywords([...selectedKeywords, keyword])
       setSuggestedKeywords(suggestedKeywords.filter((k: string) => k !== keyword))
     }
@@ -99,10 +100,10 @@ const MainPage = () => {
     setSelectedKeywords(selectedKeywords.filter((k: string) => k !== keyword))
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
       navigate('/signin')
       return
     }
@@ -111,27 +112,29 @@ const MainPage = () => {
       return
     }
 
-    const newIdea = {
-      id: Date.now().toString(),
-      title: ideaInput.split('\n')[0].substring(0, 50),
-      content: ideaInput,
-      keywords: selectedKeywords,
-      createdAt: new Date().toISOString(),
+    try {
+      const { error } = await supabase
+        .from('ideas')
+        .insert({
+          title: ideaInput, // 입력된 전체 내용을 제목(Content)으로 저장
+          content: null,    // 상세 내용은 초기에는 없음
+          keywords: selectedKeywords,
+          user_id: user.id
+        })
+
+      if (error) throw error
+
+      // 입력 필드 초기화
+      setIdeaInput('')
+      setSelectedKeywords([])
+      setSuggestedKeywords([])
+
+      // P2 Connect Map 페이지로 이동
+      navigate('/connect-map')
+    } catch (error) {
+      console.error('Error creating idea:', error)
+      alert('아이디어 저장 중 오류가 발생했습니다.')
     }
-
-    const existingIdeas = JSON.parse(
-      localStorage.getItem('ideas') || '[]'
-    )
-    const updatedIdeas = [newIdea, ...existingIdeas]
-    localStorage.setItem('ideas', JSON.stringify(updatedIdeas))
-
-    // 입력 필드 초기화
-    setIdeaInput('')
-    setSelectedKeywords([])
-    setSuggestedKeywords([])
-
-    // P2 Connect Map 페이지로 이동
-    navigate('/connect-map')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {

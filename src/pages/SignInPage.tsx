@@ -22,13 +22,13 @@ const SignInPage = () => {
       return
     }
 
-    const success = await login(email, password)
+    const result = await login(email, password)
     setIsLoading(false)
 
-    if (success) {
+    if (result.success) {
       navigate('/')
     } else {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+      setError(result.error || '이메일 또는 비밀번호가 올바르지 않습니다.')
     }
   }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import mockIdeas from '../mockData/ideas.json'
+import { supabase } from '../supabaseClient'
 import variablesData from '../variables.json'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
 import './ConnectMapPage.css'
@@ -59,11 +59,12 @@ const GRAY_COLORS = extractGrayColors()
 interface Idea {
   id: string
   title: string
-  content: string
+  content: string | null
   keywords: string[]
-  createdAt?: string
-  sourceUrl?: string
+  created_at?: string
+  source_url?: string
   bookmarked?: boolean
+  user_id?: string
 }
 
 interface KeywordGroup {
@@ -92,8 +93,8 @@ interface Connection {
 // 텍스트 유사도 계산 함수 (0 ~ 1 사이의 값)
 const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
   // 제목과 내용을 합쳐서 텍스트 준비
-  const text1 = `${idea1.title} ${idea1.content}`.toLowerCase()
-  const text2 = `${idea2.title} ${idea2.content}`.toLowerCase()
+  const text1 = `${idea1.title} ${idea1.content || ''}`.toLowerCase()
+  const text2 = `${idea2.title} ${idea2.content || ''}`.toLowerCase()
   
   // 단어로 분리 (영문, 숫자만 추출, 중복 제거)
   const words1 = new Set(text1.match(/[a-z0-9]+/g) || [])
@@ -113,7 +114,7 @@ const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
 
 const ConnectMapPage = () => {
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [ideas, setIdeas] = useState<Idea[]>([])
@@ -148,6 +149,7 @@ const ConnectMapPage = () => {
     const textLower = text.toLowerCase()
     const keywordScores: Array<{ keyword: string; score: number }> = []
 
+    // 7개 고정 키워드에 대해서만 매칭 수행
     AVAILABLE_KEYWORDS.forEach(keyword => {
       if (selectedKeywords.includes(keyword)) return
 
@@ -157,6 +159,7 @@ const ConnectMapPage = () => {
       const exactMatches = (textLower.match(new RegExp(`\\b${keywordLower}\\b`, 'gi')) || []).length
       score += exactMatches * 10
 
+      // 연관 단어 매핑
       const relatedWords: Record<string, string[]> = {
         'technology': ['tech', 'technical', 'technological', 'software', 'hardware', 'system', 'platform', 'application', 'algorithm', 'computing', 'digital', 'electronic', 'ai', 'ml', 'iot', 'cloud'],
         'innovation': ['innovative', 'innovate', 'novel', 'new', 'breakthrough', 'revolutionary', 'disruptive', 'creative', 'original', 'pioneering'],
@@ -167,8 +170,9 @@ const ConnectMapPage = () => {
         'development': ['develop', 'developing', 'building', 'creating', 'construction', 'implementation', 'programming', 'coding', 'engineering']
       }
 
-      if (relatedWords[keywordLower]) {
-        relatedWords[keywordLower].forEach(word => {
+      const lowerKey = keyword.toLowerCase()
+      if (relatedWords[lowerKey]) {
+        relatedWords[lowerKey].forEach(word => {
           const regex = new RegExp(`\\b${word}\\b`, 'gi')
           const matches = textLower.match(regex)
           if (matches) {
@@ -178,7 +182,7 @@ const ConnectMapPage = () => {
       }
 
       const firstSentence = text.split(/[.!?。！？\n]/)[0]?.toLowerCase() || ''
-      if (firstSentence.includes(keywordLower)) {
+      if (firstSentence.includes(lowerKey)) {
         score += 5
       }
 
@@ -234,29 +238,35 @@ const ConnectMapPage = () => {
     setSuggestedKeywords([])
   }
 
-  const handleAddIdeaSubmit = (e: React.FormEvent) => {
+  const handleAddIdeaSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!ideaInput.trim()) {
+    if (!ideaInput.trim() || !user) {
       return
     }
 
-    const newIdea: Idea = {
-      id: Date.now().toString(),
-      title: ideaInput.split('\n')[0].substring(0, 50),
-      content: ideaInput,
-      keywords: selectedKeywords.length > 0 ? selectedKeywords : [],
-      createdAt: new Date().toISOString(),
-      bookmarked: false,
-    }
+    try {
+      const { data, error } = await supabase
+        .from('ideas')
+        .insert({
+          title: ideaInput,
+          content: null,
+          keywords: selectedKeywords.length > 0 ? selectedKeywords : [],
+          user_id: user.id
+        })
+        .select()
+        .single()
 
-    // 현재 ideas 상태를 직접 사용하여 업데이트
-    const updatedIdeas = [newIdea, ...ideas]
-    localStorage.setItem('ideas', JSON.stringify(updatedIdeas))
-    
-    // 상태 업데이트 후 모달 닫기
-    setIdeas(updatedIdeas)
-    handleCloseAddIdeaModal()
+      if (error) throw error
+
+      if (data) {
+        setIdeas([data, ...ideas])
+        handleCloseAddIdeaModal()
+      }
+    } catch (error) {
+      console.error('Error adding idea:', error)
+      alert('아이디어 추가 중 오류가 발생했습니다.')
+    }
   }
 
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -268,44 +278,35 @@ const ConnectMapPage = () => {
     }
   }
 
-  // 아이디어 로드 (localStorage와 mock 데이터 병합)
+  // 아이디어 로드 (Supabase fetch)
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/signin')
       return
     }
 
-    const stored = localStorage.getItem('ideas')
-    let storedIdeas: Idea[] = []
-    
-    if (stored && stored !== '[]' && stored.trim() !== '[]') {
+    const fetchIdeas = async () => {
       try {
-        const parsed = JSON.parse(stored) as Idea[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          storedIdeas = parsed
+        const { data, error } = await supabase
+          .from('ideas')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+
+        if (data) {
+          setIdeas(data)
         }
-      } catch (e) {
-        console.error('Error parsing localStorage ideas:', e)
+      } catch (error) {
+        console.error('Error fetching ideas:', error)
       }
     }
-    
-    // mock 데이터와 localStorage 데이터 병합 (중복 제거)
-    const mockData = mockIdeas as Idea[]
-    const mockIds = new Set(mockData.map(idea => idea.id))
-    
-    // localStorage에 있는 아이디어 중 mock 데이터에 없는 것만 필터링
-    const userAddedIdeas = storedIdeas.filter(idea => !mockIds.has(idea.id))
-    
-    // mock 데이터 + 사용자가 추가한 아이디어
-    const allIdeas = [...mockData, ...userAddedIdeas]
-    
-    setIdeas(allIdeas)
-    
-    // localStorage에도 병합된 데이터 저장
-    if (allIdeas.length > 0) {
-      localStorage.setItem('ideas', JSON.stringify(allIdeas))
-    }
-  }, [])
+
+    fetchIdeas()
+  }, [isAuthenticated, navigate])
+
+  // ... (rest of render)
+  // We'll update the createdAt field access in the render method below as well
 
   // 키워드 그룹 생성 및 3D 배치
   useEffect(() => {
@@ -1691,18 +1692,42 @@ const ConnectMapPage = () => {
             {/* Header */}
             <div className="node-detail-header">
               <h2 className="node-detail-title">IDEA DETAIL</h2>
-          <button
+              <button
                 className="node-detail-bookmark-btn" 
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation()
+                  if (!selectedIdea) return
+                  
+                  const newBookmarkedState = !selectedIdea.bookmarked
+                  
+                  // Optimistic update
                   const updatedIdeas = ideas.map(idea => 
                     idea.id === selectedIdea.id 
-                      ? { ...idea, bookmarked: !idea.bookmarked }
+                      ? { ...idea, bookmarked: newBookmarkedState }
                       : idea
                   )
                   setIdeas(updatedIdeas)
-                  localStorage.setItem('ideas', JSON.stringify(updatedIdeas))
-                  setSelectedIdea(updatedIdeas.find(i => i.id === selectedIdea.id) || null)
+                  setSelectedIdea({ ...selectedIdea, bookmarked: newBookmarkedState })
+
+                  // DB Update
+                  try {
+                    const { error } = await supabase
+                      .from('ideas')
+                      .update({ bookmarked: newBookmarkedState })
+                      .eq('id', selectedIdea.id)
+                    
+                    if (error) throw error
+                  } catch (error) {
+                    console.error('Error updating bookmark:', error)
+                    // Rollback
+                    const revertedIdeas = ideas.map(idea => 
+                      idea.id === selectedIdea.id 
+                        ? { ...idea, bookmarked: !newBookmarkedState }
+                        : idea
+                    )
+                    setIdeas(revertedIdeas)
+                    setSelectedIdea({ ...selectedIdea, bookmarked: !newBookmarkedState })
+                  }
                 }}
               >
                 {selectedIdea.bookmarked ? (
@@ -1715,26 +1740,26 @@ const ConnectMapPage = () => {
                     <path d="M22.1666 24.5L13.9999 19.8333L5.83325 24.5V5.83333C5.83325 5.21449 6.07908 4.621 6.51667 4.18342C6.95425 3.74583 7.54775 3.5 8.16659 3.5H19.8333C20.4521 3.5 21.0456 3.74583 21.4832 4.18342C21.9208 4.621 22.1666 5.21449 22.1666 5.83333V24.5Z" stroke="#1E1E1E" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 )}
-          </button>
+              </button>
             </div>
 
             {/* Idea Content */}
             <div className="node-detail-section">
               <h3 className="node-detail-section-title">Idea content</h3>
-              <p className="node-detail-content-text">{selectedIdea.content || selectedIdea.title}</p>
+              <p className="node-detail-content-text">{selectedIdea.title}</p>
             </div>
 
             {/* Keywords */}
             <div className="node-detail-section">
               <h3 className="node-detail-section-title">keywords</h3>
               <div className="node-detail-keywords">
-            {selectedIdea.keywords.map((keyword, idx) => (
+                {selectedIdea.keywords.map((keyword, idx) => (
                   <div 
                     key={idx} 
                     className="node-detail-keyword-tag"
                     style={{ backgroundColor: KEYWORD_COLORS[keyword] || '#666666' }}
                   >
-                {keyword}
+                    {keyword}
                   </div>
                 ))}
               </div>
@@ -1747,8 +1772,8 @@ const ConnectMapPage = () => {
                 <div className="node-detail-metadata-row">
                   <span>Updated Time</span>
                   <span>
-                    {selectedIdea.createdAt 
-                      ? new Date(selectedIdea.createdAt).toLocaleString('en-US', {
+                    {selectedIdea.created_at 
+                      ? new Date(selectedIdea.created_at).toLocaleString('en-US', {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
@@ -1758,7 +1783,7 @@ const ConnectMapPage = () => {
                         }).replace(/(\d+)\/(\d+)\/(\d+), (.+)/, '$3. $1. $2.  |  $4')
                       : 'N/A'
                     }
-              </span>
+                  </span>
                 </div>
                 <div className="node-detail-metadata-row">
                   <span>Connected</span>
