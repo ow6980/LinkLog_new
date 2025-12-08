@@ -150,6 +150,9 @@ const ConnectMapPage = () => {
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
   const ideaTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const DEFAULT_SUGGESTED: string[] = []
+  const displaySuggestedKeywords =
+    suggestedKeywords.length > 0 ? suggestedKeywords : DEFAULT_SUGGESTED
 
   // 키워드 추출 함수 (MainPage와 동일)
   const extractKeywords = useCallback((text: string): string[] => {
@@ -1869,11 +1872,12 @@ const ConnectMapPage = () => {
                     </svg>
                   </button>
                 </div>
-              </div>{suggestedKeywords.length > 0 && (
+              </div>
+              {displaySuggestedKeywords.length > 0 && (
                 <div className="suggested-keywords-section">
                   <div className="suggested-keywords-label">Suggested Keywords</div>
                   <div className="suggested-keywords-row">
-                    {suggestedKeywords.map((keyword, index) => (
+                    {displaySuggestedKeywords.map((keyword, index) => (
                       <button
                         key={index}
                         type="button"
