@@ -498,7 +498,7 @@ const IdeaDetailPage = () => {
               <h2 className="section-title">Connected Idea</h2>
               <div className="connected-ideas-list">
                 {connectedIdeas.length > 0 ? (
-                  connectedIdeas.map((connectedIdea, idx) => {
+                  connectedIdeas.map((connectedIdea) => {
                     const firstKeyword = connectedIdea.keywords?.[0] || ''
                     const color = getKeywordColor(firstKeyword)
                     return (

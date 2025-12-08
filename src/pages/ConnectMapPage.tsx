@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import mockIdeas from '../mockData/ideas.json'
@@ -55,19 +55,6 @@ const extractGrayColors = () => {
 
 const GRAY_COLORS = extractGrayColors()
 
-// 키워드를 태그 색상 이름으로 매핑
-const getKeywordColorName = (keyword: string): string => {
-  const mapping: Record<string, string> = {
-    'Technology': 'red',
-    'Innovation': 'orange',
-    'Data': 'yellow',
-    'Design': 'skyblue',
-    'Business': 'violet',
-    'Research': 'green',
-    'Development': 'blue',
-  }
-  return mapping[keyword] || 'red'
-}
 
 interface Idea {
   id: string

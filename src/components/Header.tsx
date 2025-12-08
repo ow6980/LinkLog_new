@@ -13,11 +13,6 @@ const Header = () => {
     return false
   }
 
-  const handleSignInClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    navigate('/signin')
-  }
-
   const handleLogout = () => {
     logout()
     navigate('/')

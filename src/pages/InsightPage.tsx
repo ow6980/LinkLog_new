@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import variablesData from '../variables.json'
 import './InsightPage.css'
-import { format, startOfWeek, subWeeks } from 'date-fns'
+import { subWeeks } from 'date-fns'
 import * as d3 from 'd3'
 import { Idea } from '../mockData/types'
 
@@ -240,7 +240,7 @@ const InsightPage = () => {
     })
 
     return Object.entries(groups)
-      .filter(([keyword, ideaList]) => ideaList.length > 0) // 아이디어가 있는 키워드만
+      .filter(([_, ideaList]) => ideaList.length > 0) // 아이디어가 있는 키워드만
       .map(([keyword, ideaList]) => {
         // 이 그룹 내에서 키워드 빈도 계산
         const keywordCounts: Record<string, number> = {}
@@ -349,7 +349,7 @@ const InsightPage = () => {
     xAxis.selectAll('.tick line').remove()
 
     // 바 차트
-    const bars = g
+    g
       .selectAll('.bar')
       .data(keywordFreq)
       .enter()
@@ -369,7 +369,7 @@ const InsightPage = () => {
       .attr('stroke', (d) => KEYWORD_COLORS[d.keyword] || '#666666')
       .attr('stroke-width', 1)
       .style('cursor', 'pointer')
-      .on('click', function(event, d) {
+      .on('click', function(_, d) {
         setSelectedKeyword(d.keyword)
       })
   }, [keywordFreq])
@@ -512,7 +512,7 @@ const InsightPage = () => {
                     <span className="activity-title">New Idea</span>
                   </div>
                   <div className="new-ideas-list">
-                    {recentIdeas.map((idea, index) => {
+                    {recentIdeas.map((idea) => {
                       const firstKeyword = idea.keywords[0] || 'Technology'
                       const color =
                         KEYWORD_COLORS[firstKeyword] || TAG_COLORS.red
