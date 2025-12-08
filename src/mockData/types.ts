@@ -3,8 +3,9 @@ export interface Idea {
   title: string
   content: string
   keywords: string[]
-  createdAt: string
-  sourceUrl?: string
+  created_at: string
+  source_url?: string
   bookmarked?: boolean
+  user_id?: string
 }
 

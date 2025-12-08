@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { supabase } from '../supabaseClient'
 
 interface User {
   id: string
@@ -8,9 +9,9 @@ interface User {
 
 interface AuthContextType {
   user: User | null
-  login: (email: string, password: string) => Promise<boolean>
-  signup: (email: string, password: string, username?: string) => Promise<boolean>
-  logout: () => void
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  signup: (email: string, password: string, username?: string) => Promise<{ success: boolean; error?: string }>
+  logout: () => Promise<void>
   isAuthenticated: boolean
 }
 
@@ -30,71 +31,77 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // 로컬 스토리지에서 로그인 상태 확인
-    const storedUser = localStorage.getItem('currentUser')
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
-    }
+    // 현재 세션 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          username: session.user.user_metadata.username || session.user.email!.split('@')[0],
+        })
+      }
+      setLoading(false)
+    })
+
+    // 인증 상태 변경 리스너
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email!,
+          username: session.user.user_metadata.username || session.user.email!.split('@')[0],
+        })
+      } else {
+        setUser(null)
+      }
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
-  const signup = async (email: string, password: string, username?: string): Promise<boolean> => {
+  const signup = async (email: string, password: string, username?: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // 기존 사용자 확인
-      const users = JSON.parse(localStorage.getItem('users') || '[]')
-      const existingUser = users.find((u: any) => u.email === email)
-      
-      if (existingUser) {
-        return false // 이미 존재하는 이메일
-      }
-
-      // 새 사용자 생성
-      const newUser = {
-        id: Date.now().toString(),
+      const { data, error } = await supabase.auth.signUp({
         email,
-        password, // 실제로는 해시화해야 하지만, 지금은 간단하게
-        username: username || email.split('@')[0], // username이 없으면 이메일 앞부분 사용
-      }
+        password,
+        options: {
+          data: {
+            username: username || email.split('@')[0],
+          },
+        },
+      })
 
-      users.push(newUser)
-      localStorage.setItem('users', JSON.stringify(users))
+      if (error) throw error
 
-      // 자동 로그인
-      const userInfo = { id: newUser.id, email: newUser.email, username: newUser.username }
-      localStorage.setItem('currentUser', JSON.stringify(userInfo))
-      setUser(userInfo)
-
-      return true
-    } catch (error) {
+      return { success: true }
+    } catch (error: any) {
       console.error('Signup error:', error)
-      return false
+      return { success: false, error: error.message }
     }
   }
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const users = JSON.parse(localStorage.getItem('users') || '[]')
-      const user = users.find(
-        (u: any) => u.email === email && u.password === password
-      )
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      if (user) {
-        const userInfo = { id: user.id, email: user.email, username: user.username }
-        localStorage.setItem('currentUser', JSON.stringify(userInfo))
-        setUser(userInfo)
-        return true
-      }
+      if (error) throw error
 
-      return false
-    } catch (error) {
+      return { success: true }
+    } catch (error: any) {
       console.error('Login error:', error)
-      return false
+      return { success: false, error: error.message }
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem('currentUser')
+  const logout = async () => {
+    await supabase.auth.signOut()
     setUser(null)
   }
 
@@ -108,7 +115,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         isAuthenticated: !!user,
       }}
     >
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   )
 }

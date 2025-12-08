@@ -1,0 +1,171 @@
+.bookmark-card {
+  position: relative;
+  background-color: #dddddd;
+  border: 1px solid #1e1e1e;
+  height: 157px;
+  width: 100%;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+  padding: 15px;
+  padding-bottom: 20px;
+}
+
+.bookmark-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.idea-number {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 13.5px;
+  color: #1e1e1e;
+  text-transform: uppercase;
+  letter-spacing: 0.054px;
+  white-space: nowrap;
+}
+
+.idea-title {
+  position: absolute;
+  top: 40.5px;
+  left: 15px;
+  right: 15px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 22.75px;
+  color: #1e1e1e;
+  letter-spacing: 0.12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 23px;
+}
+
+.keywords-container {
+  position: absolute;
+  top: 75.5px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.card-footer {
+  position: absolute;
+  bottom: 20px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 13.5px;
+}
+
+.idea-date {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 13.5px;
+  color: #1e1e1e;
+  letter-spacing: 0.054px;
+  white-space: nowrap;
+}
+
+.connected-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 13.5px;
+  width: auto;
+}
+
+.dots-icon {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dots-icon span {
+  height: 4px;
+  background-color: #1e1e1e;
+  display: block;
+}
+
+.dots-icon span:first-child,
+.dots-icon span:nth-child(2) {
+  width: 4px;
+  flex-shrink: 0;
+}
+
+.dots-icon span:last-child {
+  flex: 1;
+  min-width: 4px;
+  height: 4px;
+}
+
+.count-number {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  font-size: 9px;
+  line-height: 13.5px;
+  color: #1e1e1e;
+  letter-spacing: 0.054px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bookmark-icon-wrapper {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+}
+
+.corner-decoration {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+}
+
+.corner-decoration.top-left {
+  top: 2px;
+  left: 2px;
+  border-top: 2px solid #c4ff00;
+  border-left: 2px solid #c4ff00;
+}
+
+.corner-decoration.top-right {
+  top: 2px;
+  right: 2px;
+  border-top: 2px solid #7efce5;
+  border-right: 2px solid #7efce5;
+}
+
+.corner-decoration.bottom-left {
+  bottom: 2px;
+  left: 2px;
+  border-bottom: 2px solid #7efce5;
+  border-left: 2px solid #7efce5;
+}
+
+.corner-decoration.bottom-right {
+  bottom: 2px;
+  right: 2px;
+  border-bottom: 2px solid #c4ff00;
+  border-right: 2px solid #c4ff00;
+}
+

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../supabaseClient'
 import variablesData from '../variables.json'
 import './InsightPage.css'
-import { format, startOfWeek, subWeeks } from 'date-fns'
+import { subWeeks } from 'date-fns'
 import * as d3 from 'd3'
-import { Idea } from '../mockData/types'
 
 // variables.json에서 색상 추출
 const rgbToHex = (r: number, g: number, b: number): string => {
@@ -54,6 +54,16 @@ const KEYWORD_COLORS: Record<string, string> = {
   Development: TAG_COLORS.blue || '#0d52ff',
 }
 
+interface Idea {
+  id: string
+  title: string
+  content: string | null
+  keywords: string[]
+  created_at: string
+  bookmarked?: boolean
+  source_url?: string
+}
+
 const InsightPage = () => {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
@@ -61,102 +71,45 @@ const InsightPage = () => {
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
 
-  // 아이디어 로드 (P2 Connect Map과 동일한 방식)
+  // 아이디어 로드
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/signin')
       return
     }
 
-    const loadIdeas = () => {
-      const stored = localStorage.getItem('ideas')
-      let storedIdeas: Idea[] = []
-      
-      if (stored && stored !== '[]' && stored.trim() !== '[]') {
-        try {
-          const parsed = JSON.parse(stored) as Idea[]
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            storedIdeas = parsed
-          }
-        } catch (e) {
-          console.error('Error parsing localStorage ideas:', e)
+    const fetchIdeas = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('ideas')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+
+        if (data) {
+          setIdeas(data)
         }
-      }
-      
-      // P2 Connect Map과 동일하게: 아이디어가 있는 키워드만 사용
-      // 키워드별 아이디어 그룹화
-      const groupsMap = new Map<string, Idea[]>()
-      storedIdeas.forEach(idea => {
-        idea.keywords.forEach(keyword => {
-          if (!groupsMap.has(keyword)) {
-            groupsMap.set(keyword, [])
-          }
-          groupsMap.get(keyword)!.push(idea)
-        })
-      })
-      
-      // 아이디어가 있는 키워드만 필터링 (P2와 동일)
-      const groupsWithIdeas = Array.from(groupsMap.entries()).filter(([_, ideasList]) => ideasList.length > 0)
-      const validKeywords = new Set(groupsWithIdeas.map(([keyword]) => keyword))
-      
-      // 유효한 키워드를 가진 아이디어만 사용
-      const validIdeas = storedIdeas.filter(idea => 
-        idea.keywords.some(keyword => validKeywords.has(keyword))
-      )
-      
-      setIdeas(validIdeas)
-    }
-
-    loadIdeas()
-
-    // localStorage 변경 감지를 위한 이벤트 리스너
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'ideas') {
-        loadIdeas()
+      } catch (error) {
+        console.error('Error fetching ideas:', error)
       }
     }
 
-    window.addEventListener('storage', handleStorageChange)
-
-    // 주기적으로 확인 (다른 탭에서 변경된 경우)
-    const interval = setInterval(loadIdeas, 1000)
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      clearInterval(interval)
-    }
+    fetchIdeas()
   }, [isAuthenticated, navigate])
 
-  // 키워드 빈도 계산 (P2 Connect Map에 표시되는 키워드만)
+  // 키워드 빈도 계산
   const keywordFreq = useMemo(() => {
-    // P2 Connect Map과 동일하게: 키워드별 아이디어 그룹화
-    const groupsMap = new Map<string, Idea[]>()
-    ideas.forEach(idea => {
-      idea.keywords.forEach(keyword => {
-        if (!groupsMap.has(keyword)) {
-          groupsMap.set(keyword, [])
-        }
-        groupsMap.get(keyword)!.push(idea)
-      })
-    })
-    
-    // 아이디어가 있는 키워드만 필터링 (P2와 동일)
-    const groupsWithIdeas = Array.from(groupsMap.entries()).filter(([_, ideasList]) => ideasList.length > 0)
-    const validKeywords = new Set(groupsWithIdeas.map(([keyword]) => keyword))
-    
-    // 유효한 키워드만 카운트
     const keywordCount: Record<string, number> = {}
     ideas.forEach((idea) => {
       idea.keywords.forEach((keyword) => {
-        if (validKeywords.has(keyword)) {
-          keywordCount[keyword] = (keywordCount[keyword] || 0) + 1
-        }
+        keywordCount[keyword] = (keywordCount[keyword] || 0) + 1
       })
     })
 
     return Object.entries(keywordCount)
       .map(([keyword, count]) => ({ keyword, count }))
-      .filter((item) => item.count > 0) // 아이디어가 있는 키워드만
+      .filter((item) => item.count > 0)
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
   }, [ideas])
@@ -165,7 +118,7 @@ const InsightPage = () => {
   const thisWeekKeywords = useMemo(() => {
     const weekAgo = subWeeks(new Date(), 1)
     const recentIdeas = ideas.filter(
-      (idea) => new Date(idea.createdAt) >= weekAgo
+      (idea) => new Date(idea.created_at) >= weekAgo
     )
 
     const keywordCount: Record<string, number> = {}
@@ -181,11 +134,10 @@ const InsightPage = () => {
       .slice(0, 3)
   }, [ideas])
 
-  // 가장 활성화된 아이디어 (연결 수가 가장 많은 아이디어)
+  // 가장 활성화된 아이디어
   const mostActiveIdea = useMemo(() => {
     if (ideas.length === 0) return null
 
-    // 각 아이디어의 연결 수 계산 (공유 키워드 기반)
     const connectionCounts: Record<string, number> = {}
     ideas.forEach((idea) => {
       let connections = 0
@@ -215,17 +167,17 @@ const InsightPage = () => {
       : null
   }, [ideas])
 
-  // 최근 아이디어 (최근 3개)
+  // 최근 아이디어
   const recentIdeas = useMemo(() => {
     return [...ideas]
       .sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
       .slice(0, 3)
   }, [ideas])
 
-  // 키워드 그룹핑 (같은 키워드를 가진 아이디어들을 그룹화, 아이디어가 있는 키워드만)
+  // 키워드 그룹핑
   const keywordGroups = useMemo(() => {
     const groups: Record<string, Idea[]> = {}
     ideas.forEach((idea) => {
@@ -240,9 +192,8 @@ const InsightPage = () => {
     })
 
     return Object.entries(groups)
-      .filter(([keyword, ideaList]) => ideaList.length > 0) // 아이디어가 있는 키워드만
+      .filter(([keyword, ideaList]) => ideaList.length > 0)
       .map(([keyword, ideaList]) => {
-        // 이 그룹 내에서 키워드 빈도 계산
         const keywordCounts: Record<string, number> = {}
         ideaList.forEach((idea) => {
           idea.keywords.forEach((k) => {
@@ -267,14 +218,13 @@ const InsightPage = () => {
       .slice(0, 3)
   }, [ideas])
 
-  // 키워드 빈도 그래프 그리기 - 정석적인 d3 바 차트
+  // 차트 그리기
   useEffect(() => {
     if (!keywordChartRef.current || keywordFreq.length === 0) return
 
     const svg = d3.select(keywordChartRef.current)
     svg.selectAll('*').remove()
 
-    // 정석적인 margin 설정
     const margin = { top: 20, right: 20, bottom: 40, left: 50 }
     const svgWidth = 623
     const svgHeight = 280
@@ -287,21 +237,18 @@ const InsightPage = () => {
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`)
 
-    // X축 스케일
     const x = d3
       .scaleBand()
       .range([0, width])
       .padding(0.2)
       .domain(keywordFreq.map((d) => d.keyword))
 
-    // Y축 스케일 - 0, 5, 10, 15로 고정
     const yMax = 15
     const y = d3
       .scaleLinear()
       .range([height, 0])
       .domain([0, yMax])
 
-    // 가이드 라인 (0, 5, 10, 15 위치에 얇은 점선)
     const guideTicks = [0, 5, 10, 15]
     guideTicks.forEach((tickValue) => {
       g.append('line')
@@ -315,7 +262,6 @@ const InsightPage = () => {
         .attr('opacity', 0.3)
     })
 
-    // Y축 텍스트만 표시 (0, 5, 10, 15)
     const yTicks = [0, 5, 10, 15]
     const yAxis = g.append('g').call(
       d3.axisLeft(y)
@@ -328,11 +274,9 @@ const InsightPage = () => {
       .style('font-size', '10px')
       .style('fill', GRAY_COLORS['400'] || '#666666')
     
-    // Y축 선 제거 (텍스트만)
     yAxis.selectAll('.domain').remove()
     yAxis.selectAll('.tick line').remove()
 
-    // X축 텍스트만 표시 (키워드 이름)
     const xAxis = g
       .append('g')
       .attr('transform', `translate(0,${height})`)
@@ -344,13 +288,10 @@ const InsightPage = () => {
       .style('fill', GRAY_COLORS['400'] || '#666666')
       .style('text-anchor', 'middle')
     
-    // X축 선 제거 (텍스트만)
     xAxis.selectAll('.domain').remove()
     xAxis.selectAll('.tick line').remove()
 
-    // 바 차트
-    const bars = g
-      .selectAll('.bar')
+    g.selectAll('.bar')
       .data(keywordFreq)
       .enter()
       .append('rect')
@@ -359,12 +300,9 @@ const InsightPage = () => {
       .attr('width', x.bandwidth())
       .attr('y', (d) => y(d.count))
       .attr('height', (d) => height - y(d.count))
-      .attr('rx', 4) // 상단 둥근 모서리
+      .attr('rx', 4)
       .attr('ry', 4)
-      .attr('fill', (d) => {
-        const color = KEYWORD_COLORS[d.keyword] || '#666666'
-        return color
-      })
+      .attr('fill', (d) => KEYWORD_COLORS[d.keyword] || '#666666')
       .attr('fill-opacity', 0.05)
       .attr('stroke', (d) => KEYWORD_COLORS[d.keyword] || '#666666')
       .attr('stroke-width', 1)
@@ -374,7 +312,6 @@ const InsightPage = () => {
       })
   }, [keywordFreq])
 
-  // Empty state
   if (ideas.length === 0) {
     return (
       <div className="insight-page">
@@ -401,7 +338,6 @@ const InsightPage = () => {
         </div>
 
         <div className="insight-content">
-          {/* Summary Report & Recent Activity */}
           <div className="summary-section">
             <div className="summary-report">
               <div className="section-title-area">
@@ -433,25 +369,9 @@ const InsightPage = () => {
                   <div className="activity-card">
                     <div className="activity-header">
                       <div className="activity-icon">
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M10.6667 4.66675H14.6667V8.66675"
-                            stroke="#1E1E1E"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M14.6666 4.66675L8.99992 10.3334L5.66659 7.00008L1.33325 11.3334"
-                            stroke="#1E1E1E"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10.6667 4.66675H14.6667V8.66675" stroke="#1E1E1E" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M14.6666 4.66675L8.99992 10.3334L5.66659 7.00008L1.33325 11.3334" stroke="#1E1E1E" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       </div>
                       <span className="activity-title">Most Active Idea</span>
@@ -467,8 +387,7 @@ const InsightPage = () => {
                             key={keyword}
                             className="activity-tag"
                             style={{
-                              backgroundColor:
-                                KEYWORD_COLORS[keyword] || TAG_COLORS.skyblue,
+                              backgroundColor: KEYWORD_COLORS[keyword] || TAG_COLORS.skyblue,
                             }}
                           >
                             {keyword}
@@ -482,40 +401,18 @@ const InsightPage = () => {
                 <div className="activity-card">
                   <div className="activity-header">
                     <div className="activity-icon">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M10 9.33325C10.1333 8.66659 10.4667 8.19992 11 7.66659C11.6667 7.06659 12 6.19992 12 5.33325C12 4.27239 11.5786 3.25497 10.8284 2.50482C10.0783 1.75468 9.06087 1.33325 8 1.33325C6.93913 1.33325 5.92172 1.75468 5.17157 2.50482C4.42143 3.25497 4 4.27239 4 5.33325C4 5.99992 4.13333 6.79992 5 7.66659C5.46667 8.13325 5.86667 8.66659 6 9.33325"
-                          stroke="#1E1E1E"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M6 12H10"
-                          stroke="#1E1E1E"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M6.66675 14.6667H9.33341"
-                          stroke="#1E1E1E"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 9.33325C10.1333 8.66659 10.4667 8.19992 11 7.66659C11.6667 7.06659 12 6.19992 12 5.33325C12 4.27239 11.5786 3.25497 10.8284 2.50482C10.0783 1.75468 9.06087 1.33325 8 1.33325C6.93913 1.33325 5.92172 1.75468 5.17157 2.50482C4.42143 3.25497 4 4.27239 4 5.33325C4 5.99992 4.13333 6.79992 5 7.66659C5.46667 8.13325 5.86667 8.66659 6 9.33325" stroke="#1E1E1E" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M6 12H10" stroke="#1E1E1E" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M6.66675 14.6667H9.33341" stroke="#1E1E1E" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     </div>
                     <span className="activity-title">New Idea</span>
                   </div>
                   <div className="new-ideas-list">
-                    {recentIdeas.map((idea, index) => {
+                    {recentIdeas.map((idea) => {
                       const firstKeyword = idea.keywords[0] || 'Technology'
-                      const color =
-                        KEYWORD_COLORS[firstKeyword] || TAG_COLORS.red
+                      const color = KEYWORD_COLORS[firstKeyword] || TAG_COLORS.red
                       return (
                         <div key={idea.id} className="new-idea-item">
                           <div
@@ -523,7 +420,7 @@ const InsightPage = () => {
                             style={{ backgroundColor: color }}
                           ></div>
                           <span className="new-idea-text">
-                            {idea.title || idea.content.substring(0, 30)}
+                            {idea.title || (idea.content ? idea.content.substring(0, 30) : '')}
                           </span>
                         </div>
                       )
@@ -534,7 +431,6 @@ const InsightPage = () => {
             </div>
           </div>
 
-          {/* Keyword Frequency & Grouping */}
           <div className="keyword-section">
             <div className="keyword-frequency">
               <div className="section-title-area">
@@ -547,55 +443,49 @@ const InsightPage = () => {
             </div>
           </div>
 
-          {/* Keyword Grouping Panel - 하단에 배치 */}
           <div className="keyword-grouping-section">
             <div className="keyword-grouping-panel">
               {selectedKeyword ? (
-                // 선택된 키워드의 아이디어 목록 표시 (Figma 디자인)
-                (() => {
-                  const selectedIdeas = ideas.filter((idea) =>
-                    idea.keywords.includes(selectedKeyword)
-                  )
-                  const color =
-                    KEYWORD_COLORS[selectedKeyword] || TAG_COLORS.skyblue
-                  return (
-                    <div className="selected-keyword-panel">
-                      <div className="selected-keyword-header">
-                        <div
-                          className="selected-keyword-dot"
-                          style={{ backgroundColor: color }}
-                        ></div>
-                        <span className="selected-keyword-name">
-                          {selectedKeyword}
-                        </span>
-                        <span className="selected-keyword-count">
-                          ({selectedIdeas.length} ideas)
-                        </span>
-                      </div>
-                      <div className="selected-ideas-list">
-                        {selectedIdeas.map((idea) => {
-                          // 아이디어의 첫 번째 키워드 색상 사용
-                          const ideaColor =
-                            KEYWORD_COLORS[idea.keywords[0]] ||
-                            TAG_COLORS.red
-                          return (
-                            <div key={idea.id} className="selected-idea-item">
-                              <div
-                                className="selected-idea-dot"
-                                style={{ backgroundColor: ideaColor }}
-                              ></div>
-                              <span className="selected-idea-text">
-                                {idea.title || idea.content.substring(0, 50)}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })()
+                <div className="selected-keyword-panel">
+                  <div className="selected-keyword-header">
+                    <div
+                      className="selected-keyword-dot"
+                      style={{ backgroundColor: KEYWORD_COLORS[selectedKeyword] || TAG_COLORS.skyblue }}
+                    ></div>
+                    <span className="selected-keyword-name">
+                      {selectedKeyword}
+                    </span>
+                    <span className="selected-keyword-count">
+                      ({ideas.filter(idea => idea.keywords.includes(selectedKeyword)).length} ideas)
+                    </span>
+                    <button 
+                      className="close-keyword-btn"
+                      onClick={() => setSelectedKeyword(null)}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#666', fontSize: '20px' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="selected-ideas-list">
+                    {ideas
+                      .filter((idea) => idea.keywords.includes(selectedKeyword))
+                      .map((idea) => {
+                        const ideaColor = KEYWORD_COLORS[idea.keywords[0]] || TAG_COLORS.red
+                        return (
+                          <div key={idea.id} className="selected-idea-item">
+                            <div
+                              className="selected-idea-dot"
+                              style={{ backgroundColor: ideaColor }}
+                            ></div>
+                            <span className="selected-idea-text">
+                              {idea.title || (idea.content ? idea.content.substring(0, 50) : '')}
+                            </span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
               ) : (
-                // 기본 그룹핑 표시
                 <div className="keyword-grouping">
                   <div className="section-title-area">
                     <h2 className="section-title">keyword</h2>
@@ -604,10 +494,14 @@ const InsightPage = () => {
                   <div className="grouping-list">
                     {keywordGroups.map((group) => {
                       const firstKeyword = group.keyword
-                      const color =
-                        KEYWORD_COLORS[firstKeyword] || TAG_COLORS.skyblue
+                      const color = KEYWORD_COLORS[firstKeyword] || TAG_COLORS.skyblue
                       return (
-                        <div key={group.keyword} className="grouping-card">
+                        <div 
+                          key={group.keyword} 
+                          className="grouping-card" 
+                          onClick={() => setSelectedKeyword(group.keyword)} 
+                          style={{ cursor: 'pointer' }}
+                        >
                           <div className="grouping-header">
                             <div
                               className="grouping-dot"
@@ -624,8 +518,7 @@ const InsightPage = () => {
                                 key={keyword}
                                 className="grouping-tag"
                                 style={{
-                                  backgroundColor:
-                                    KEYWORD_COLORS[keyword] || TAG_COLORS.skyblue,
+                                  backgroundColor: KEYWORD_COLORS[keyword] || TAG_COLORS.skyblue,
                                 }}
                               >
                                 {keyword}({group.keywordCounts[keyword]})
