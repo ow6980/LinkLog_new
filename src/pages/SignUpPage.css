@@ -37,7 +37,7 @@
 }
 
 .main-title {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Pretendard', 'Montserrat', sans-serif;
   font-weight: 500;
   font-size: 64px;
   line-height: 1;
@@ -47,7 +47,7 @@
 }
 
 .subtitle {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Pretendard', 'Montserrat', sans-serif;
   font-weight: 500;
   font-size: 28px;
   line-height: 1;
@@ -74,7 +74,7 @@
 }
 
 .input-label {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Pretendard', 'Montserrat', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 24px;
@@ -90,7 +90,7 @@
   border: 2px solid #1e1e1e;
   border-radius: 0;
   padding: 20px 24px;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Pretendard', 'Montserrat', sans-serif;
   font-weight: 400;
   font-size: 24px;
   line-height: 24px;
@@ -101,7 +101,7 @@
 
 .signup-input::placeholder {
   color: #949494;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Pretendard', 'Montserrat', sans-serif;
   font-weight: 400;
   font-size: 24px;
   line-height: 24px;
@@ -120,7 +120,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Pretendard', 'Montserrat', sans-serif;
   font-weight: 600;
   font-size: 20px;
   line-height: 16px;
@@ -141,7 +141,7 @@
 }
 
 .error-message {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Pretendard', 'Montserrat', sans-serif;
   font-weight: 400;
   font-size: 16px;
   line-height: 20px;
