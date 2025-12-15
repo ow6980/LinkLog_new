@@ -167,37 +167,86 @@ const BookmarkPage = () => {
 
   return (
     <div className="bookmark-page">
-        {/* ... (Header remains same) */}
+      <div className="bookmark-container">
+        <div className="bookmark-header">
+          <div className="bookmark-title-block">
+            <div className="title-row">
+              <div className="title-icon">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M14 2L17.09 10.26L26 11.27L19 17.14L20.18 26.02L14 22L7.82 26.02L9 17.14L2 11.27L10.91 10.26L14 2Z" fill="#1e1e1e"/>
+                </svg>
+              </div>
+              <h1 className="bookmark-title">Bookmarks</h1>
+            </div>
+            <p className="bookmark-subtitle">Your saved ideas</p>
+          </div>
+        </div>
         
-        {/* ... (Grid mapping) */}
+        {ideas.length === 0 ? (
+          <div className="empty-state">
+            <p>No bookmarked ideas yet.</p>
+          </div>
+        ) : (
+          <div className="bookmark-grid">
             {ideas.map((idea, index) => {
               const connectedCount = getConnectedIdeasCount(idea)
               // Use content (detailed notes) for preview if available
               const contentPreview = getContentPreview(idea.content || undefined) 
               return (
-                <article key={idea.id} ... >
-                  {/* ... */}
+                <article 
+                  key={idea.id} 
+                  className="bookmark-card"
+                  onClick={() => handleCardClick(idea.id)}
+                >
+                  <div className="card-top">
+                    <div className="card-number">
+                      <span className="card-number-text">NO. {index + 1}</span>
+                    </div>
+                    <div 
+                      className="bookmark-icon-btn"
+                      onClick={(e) => handleBookmarkToggle(e, idea)}
+                    >
+                      {/* Bookmark icon will be added here if needed */}
+                    </div>
+                  </div>
+                  
                   <div className="card-content">
                     <h3 className="idea-title">{idea.title}</h3>
                   </div>
 
                   {contentPreview && (
                     <div className="idea-snippet-wrapper">
-                      {/* Show snippet if design requires */}
-                       <p className="idea-snippet">{contentPreview}</p>
+                      <p className="idea-snippet">{contentPreview}</p>
                     </div>
                   )}
 
-                  {/* ... (rest of card) */}
+                  {idea.keywords && idea.keywords.length > 0 && (
+                    <div className="idea-keywords">
+                      {idea.keywords.slice(0, 2).map((keyword, idx) => (
+                        <span key={idx} className="keyword-tag-bookmark">
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   
                   <div className="idea-card-bottom">
                     <div className="idea-date">{formatDate(idea.created_at)}</div>
-                    {/* ... */}
+                    <div className="connected-ideas-count">
+                      <div className="dot-icon">
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                      </div>
+                      <span className="count-text">{connectedCount}</span>
+                    </div>
                   </div>
                 </article>
               )
             })}
-        {/* ... */}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

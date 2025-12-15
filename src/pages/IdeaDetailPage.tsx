@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
-import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
+import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
 import variablesData from '../variables.json'
 import './IdeaDetailPage.css'
 
@@ -87,12 +87,12 @@ const IdeaDetailPage = () => {
           setSourceUrls(currentIdea.source_url ? [currentIdea.source_url] : [])
           setIsBookmarked(currentIdea.bookmarked || false)
 
-          // Suggested keywords
-          const contentText = (currentIdea.title || '').toLowerCase()
-          const suggested = AVAILABLE_KEYWORDS.filter(
-            (keyword) =>
-              contentText.includes(keyword.toLowerCase()) &&
-              !currentIdea.keywords?.includes(keyword)
+          // Suggested keywords - 텍스트에서 의미있는 키워드 추출
+          const contentText = `${currentIdea.title || ''} ${currentIdea.content || ''}`
+          const extracted = extractMeaningfulKeywords(contentText, 7)
+          // 이미 선택된 키워드는 제외
+          const suggested = extracted.filter(
+            (keyword) => !currentIdea.keywords?.includes(keyword)
           )
           setSuggestedKeywords(suggested)
 
@@ -164,6 +164,23 @@ const IdeaDetailPage = () => {
     }
   }, [content, keywords, detailedNotes, sourceUrls, isBookmarked])
 
+  // content나 detailedNotes가 변경될 때 키워드 추천 업데이트
+  useEffect(() => {
+    if (content || detailedNotes) {
+      const fullText = `${content} ${detailedNotes}`.trim()
+      if (fullText) {
+        const extracted = extractMeaningfulKeywords(fullText, 7)
+        // 이미 선택된 키워드는 제외
+        const suggested = extracted.filter(
+          (keyword) => !keywords.includes(keyword)
+        )
+        setSuggestedKeywords(suggested)
+      } else {
+        setSuggestedKeywords([])
+      }
+    }
+  }, [content, detailedNotes, keywords])
+
   // ... (textarea resize effects)
 
   const handleBookmarkToggle = () => {
@@ -232,6 +249,12 @@ const IdeaDetailPage = () => {
 }
 
 export default IdeaDetailPage
+
+
+
+
+
+
 
 
 

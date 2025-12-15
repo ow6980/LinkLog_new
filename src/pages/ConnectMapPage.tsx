@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
 import variablesData from '../variables.json'
-import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
+import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
 import './ConnectMapPage.css'
 
 // variables.json에서 색상 추출 (RGB를 HEX로 변환)
@@ -29,15 +29,52 @@ const extractTagColors = () => {
 
 const TAG_COLORS = extractTagColors()
 
-// 키워드 색상 매핑 (variables.json의 tag 색상 사용)
-const KEYWORD_COLORS: Record<string, string> = {
-  Technology: TAG_COLORS.red || '#ff4848',
-  Innovation: TAG_COLORS.orange || '#ffae2b',
-  Data: TAG_COLORS.yellow || '#ffff06',
-  Design: TAG_COLORS.skyblue || '#0de7ff',
-  Business: TAG_COLORS.violet || '#8a38f5',
-  Research: TAG_COLORS.green || '#77ff00',
-  Development: TAG_COLORS.blue || '#0d52ff',
+// 사용 가능한 색상 목록 (키워드가 많을 경우 순환 사용)
+const AVAILABLE_COLORS = [
+  TAG_COLORS.red || '#ff4848',
+  TAG_COLORS.orange || '#ffae2b',
+  TAG_COLORS.yellow || '#ffff06',
+  TAG_COLORS.skyblue || '#0de7ff',
+  TAG_COLORS.violet || '#8a38f5',
+  TAG_COLORS.green || '#77ff00',
+  TAG_COLORS.blue || '#0d52ff',
+]
+
+// 키워드에 색상 할당 (최대 7개, 각 키워드는 다른 색상)
+const getKeywordColor = (keywordIndex: number, isInitial: boolean = false): string => {
+  // 초기 상태(그룹핑 전)는 그레이 색상
+  if (isInitial) {
+    return GRAY_COLORS['500'] || '#666666'
+  }
+  // 그룹핑 후에는 7가지 색상 중에서 할당 (최대 7개)
+  if (keywordIndex >= 0 && keywordIndex < AVAILABLE_COLORS.length) {
+    return AVAILABLE_COLORS[keywordIndex]
+  }
+  // 7개를 초과하면 그레이 색상
+  return GRAY_COLORS['500'] || '#666666'
+}
+
+// 그룹에서 키워드 이름 생성 (그룹 내 아이디어들의 공통 키워드 추출)
+const generateKeywordFromGroup = (ideas: Idea[]): string => {
+  if (ideas.length === 0) return 'Untitled'
+  
+  // 모든 아이디어의 텍스트를 합침
+  const allText = ideas.map(idea => `${idea.title} ${idea.content || ''}`).join(' ')
+  
+  // 키워드 추출 (상위 1개)
+  const keywords = extractMeaningfulKeywords(allText, 1)
+  if (keywords.length > 0) {
+    return keywords[0]
+  }
+  
+  // 키워드가 없으면 첫 번째 아이디어의 제목에서 추출
+  const firstTitle = ideas[0].title
+  const titleKeywords = extractMeaningfulKeywords(firstTitle, 1)
+  if (titleKeywords.length > 0) {
+    return titleKeywords[0]
+  }
+  
+  return 'Group ' + ideas.length
 }
 
 // Gray 색상 추출
@@ -141,60 +178,15 @@ const ConnectMapPage = () => {
   const displaySuggestedKeywords =
     suggestedKeywords.length > 0 ? suggestedKeywords : DEFAULT_SUGGESTED
 
-  // 키워드 추출 함수 (MainPage와 동일)
+  // 키워드 추출 함수 - 텍스트에서 의미있는 키워드 자동 추출
   const extractKeywords = useCallback((text: string): string[] => {
     if (!text.trim()) return []
 
-    const textLower = text.toLowerCase()
-    const keywordScores: Array<{ keyword: string; score: number }> = []
-
-    // 7개 고정 키워드에 대해서만 매칭 수행
-    AVAILABLE_KEYWORDS.forEach(keyword => {
-      if (selectedKeywords.includes(keyword)) return
-
-      const keywordLower = keyword.toLowerCase()
-      let score = 0
-
-      const exactMatches = (textLower.match(new RegExp(`\\b${keywordLower}\\b`, 'gi')) || []).length
-      score += exactMatches * 10
-
-      // 연관 단어 매핑
-      const relatedWords: Record<string, string[]> = {
-        'technology': ['tech', 'technical', 'technological', 'software', 'hardware', 'system', 'platform', 'application', 'algorithm', 'computing', 'digital', 'electronic', 'ai', 'ml', 'iot', 'cloud'],
-        'innovation': ['innovative', 'innovate', 'novel', 'new', 'breakthrough', 'revolutionary', 'disruptive', 'creative', 'original', 'pioneering'],
-        'data': ['dataset', 'database', 'analytics', 'analysis', 'information', 'dataset', 'processing', 'mining', 'collection', 'storage'],
-        'design': ['designing', 'designed', 'architecture', 'structure', 'layout', 'interface', 'ui', 'ux', 'user experience', 'visual'],
-        'business': ['business', 'commercial', 'enterprise', 'company', 'organization', 'market', 'customer', 'client', 'revenue', 'profit'],
-        'research': ['research', 'study', 'investigation', 'experiment', 'academic', 'scientific', 'analysis', 'findings', 'discovery'],
-        'development': ['develop', 'developing', 'building', 'creating', 'construction', 'implementation', 'programming', 'coding', 'engineering']
-      }
-
-      const lowerKey = keyword.toLowerCase()
-      if (relatedWords[lowerKey]) {
-        relatedWords[lowerKey].forEach(word => {
-          const regex = new RegExp(`\\b${word}\\b`, 'gi')
-          const matches = textLower.match(regex)
-          if (matches) {
-            score += matches.length * 3
-          }
-        })
-      }
-
-      const firstSentence = text.split(/[.!?。！？\n]/)[0]?.toLowerCase() || ''
-      if (firstSentence.includes(lowerKey)) {
-        score += 5
-      }
-
-      if (score > 0) {
-        keywordScores.push({ keyword, score })
-      }
-    })
-
-    return keywordScores
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 7)
-      .map(item => item.keyword)
-      .filter(k => k && !selectedKeywords.includes(k))
+    // 새로운 키워드 추출 함수 사용 (최대 7개)
+    const extracted = extractMeaningfulKeywords(text, 7)
+    
+    // 이미 선택된 키워드는 제외
+    return extracted.filter(k => !selectedKeywords.includes(k))
   }, [selectedKeywords])
 
   // 키워드 추출 useEffect
@@ -235,6 +227,88 @@ const ConnectMapPage = () => {
     setIdeaInput('')
     setSelectedKeywords([])
     setSuggestedKeywords([])
+  }
+
+  // 디자인 아이디어 데이터 삽입 함수 (임시)
+  const handleInsertDesignIdeas = async () => {
+    if (!user) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
+    if (!confirm('기존 아이디어를 모두 삭제하고 디자인 아이디어 데이터를 삽입하시겠습니까?')) {
+      return
+    }
+
+    const designIdeas = [
+      { title: '모바일 앱의 직관적인 네비게이션 디자인', bookmarked: false },
+      { title: '사용자 경험을 개선하는 마이크로 인터랙션 디자인', bookmarked: true },
+      { title: '접근성을 고려한 UI 컴포넌트 디자인 시스템', bookmarked: false },
+      { title: '다크모드와 라이트모드 전환 애니메이션', bookmarked: true },
+      { title: '터치 제스처 기반 인터페이스 디자인', bookmarked: false },
+      { title: '반응형 웹사이트의 그리드 레이아웃 시스템', bookmarked: true },
+      { title: '스크롤 기반 스토리텔링 웹 디자인', bookmarked: false },
+      { title: '패럴랙스 스크롤을 활용한 랜딩 페이지', bookmarked: true },
+      { title: '웹 폰트와 타이포그래피 시스템 구축', bookmarked: false },
+      { title: 'CSS 그리드와 플렉스박스를 활용한 레이아웃', bookmarked: true },
+      { title: '브랜드 아이덴티티를 반영한 로고 디자인', bookmarked: false },
+      { title: '컬러 팔레트와 브랜드 가이드라인 제작', bookmarked: true },
+      { title: '일관된 비주얼 언어를 위한 디자인 시스템', bookmarked: false },
+      { title: '인포그래픽을 활용한 데이터 시각화', bookmarked: true },
+      { title: '일러스트레이션 스타일 가이드 개발', bookmarked: false },
+      { title: '프로토타이핑 도구를 활용한 인터랙션 설계', bookmarked: true },
+      { title: '사용자 플로우와 와이어프레임 설계', bookmarked: false },
+      { title: '애니메이션 타이밍과 이징 함수 연구', bookmarked: true },
+      { title: '피드백 메커니즘을 통한 사용자 경험 개선', bookmarked: false },
+      { title: '모션 디자인 원칙과 베스트 프랙티스', bookmarked: true },
+      { title: 'Figma 컴포넌트 라이브러리 구축', bookmarked: false },
+      { title: '디자인 토큰과 변수를 활용한 시스템', bookmarked: true },
+      { title: '디자이너와 개발자 간 협업 워크플로우', bookmarked: false },
+      { title: '디자인 시스템 문서화와 유지보수', bookmarked: true },
+      { title: '자동화된 디자인 검증 도구 개발', bookmarked: false },
+    ]
+
+    try {
+      // 기존 데이터 삭제
+      const { error: deleteError } = await supabase
+        .from('ideas')
+        .delete()
+        .eq('user_id', user.id)
+
+      if (deleteError) {
+        console.warn('기존 데이터 삭제 중 오류:', deleteError)
+      }
+
+      // 날짜 생성
+      const baseDate = new Date('2024-01-15T10:30:00.000Z')
+      const ideasToInsert = designIdeas.map((idea, index) => {
+        const date = new Date(baseDate)
+        date.setDate(date.getDate() + index)
+        return {
+          title: idea.title,
+          content: null,
+          keywords: [],
+          source_url: null,
+          bookmarked: idea.bookmarked,
+          created_at: date.toISOString(),
+          user_id: user.id,
+        }
+      })
+
+      // 새 아이디어 삽입
+      const { data, error } = await supabase
+        .from('ideas')
+        .insert(ideasToInsert)
+        .select()
+
+      if (error) throw error
+
+      alert(`${data.length}개의 디자인 아이디어가 삽입되었습니다.`)
+      window.location.reload()
+    } catch (error: any) {
+      console.error('아이디어 삽입 오류:', error)
+      alert('오류가 발생했습니다: ' + error.message)
+    }
   }
 
   const handleAddIdeaSubmit = async (e: React.FormEvent) => {
@@ -307,25 +381,104 @@ const ConnectMapPage = () => {
   // ... (rest of render)
   // We'll update the createdAt field access in the render method below as well
 
-  // 키워드 그룹 생성 및 3D 배치
+  // 키워드 그룹 생성 및 3D 배치 (유사도 기반 클러스터링)
   useEffect(() => {
     if (ideas.length === 0) return
 
-    // 키워드별 아이디어 그룹화
-    const groupsMap = new Map<string, Idea[]>()
+    // 1단계: 유사도 기반 클러스터링
+    const CLUSTERING_SIMILARITY_THRESHOLD = 0.15 // 클러스터링 유사도 임계값
+    const MIN_GROUP_SIZE = 1 // 최소 그룹 크기 (1개 이상으로 변경 - 모든 아이디어 표시)
+    const MAX_KEYWORDS = 7 // 최대 키워드 개수
+    
+    // 모든 아이디어 쌍의 유사도 계산
+    const similarityMatrix: Map<string, Map<string, number>> = new Map()
+    ideas.forEach(idea1 => {
+      const row = new Map<string, number>()
+      ideas.forEach(idea2 => {
+        if (idea1.id !== idea2.id) {
+          const similarity = calculateSimilarity(idea1, idea2)
+          if (similarity >= CLUSTERING_SIMILARITY_THRESHOLD) {
+            row.set(idea2.id, similarity)
+          }
+        }
+      })
+      similarityMatrix.set(idea1.id, row)
+    })
+    
+    // 2단계: 클러스터링 (간단한 연결 컴포넌트 알고리즘)
+    const visited = new Set<string>()
+    const clusters: Idea[][] = []
     
     ideas.forEach(idea => {
-      idea.keywords.forEach(keyword => {
-        if (!groupsMap.has(keyword)) {
-          groupsMap.set(keyword, [])
+      if (visited.has(idea.id)) return
+      
+      // BFS로 연결된 아이디어들 찾기
+      const cluster: Idea[] = []
+      const queue: Idea[] = [idea]
+      visited.add(idea.id)
+      
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        cluster.push(current)
+        
+        const similarIdeas = similarityMatrix.get(current.id)
+        if (similarIdeas) {
+          similarIdeas.forEach((similarity, otherId) => {
+            if (!visited.has(otherId)) {
+              const otherIdea = ideas.find(i => i.id === otherId)
+              if (otherIdea) {
+                visited.add(otherId)
+                queue.push(otherIdea)
+              }
+            }
+          })
         }
-        groupsMap.get(keyword)!.push(idea)
-      })
+      }
+      
+      // 최소 그룹 크기 이상인 클러스터만 추가
+      if (cluster.length >= MIN_GROUP_SIZE) {
+        clusters.push(cluster)
+      }
     })
-
-    // 아이디어가 있는 키워드만 필터링
-    const groupsWithIdeas = Array.from(groupsMap.entries()).filter(([_, ideasList]) => ideasList.length > 0)
+    
+    // 클러스터에 포함되지 않은 아이디어들도 개별 클러스터로 추가
+    const clusteredIdeaIds = new Set<string>()
+    clusters.forEach(cluster => {
+      cluster.forEach(idea => clusteredIdeaIds.add(idea.id))
+    })
+    
+    ideas.forEach(idea => {
+      if (!clusteredIdeaIds.has(idea.id)) {
+        // 클러스터에 포함되지 않은 아이디어는 개별 클러스터로 추가
+        clusters.push([idea])
+      }
+    })
+    
+    // 3단계: 클러스터를 크기 순으로 정렬
+    clusters.sort((a, b) => b.length - a.length)
+    
+    // 키워드 그룹으로 선택할 클러스터 (최대 7개, 3개 이상인 것만)
+    const keywordClusters = clusters.filter(c => c.length >= MIN_GROUP_SIZE).slice(0, MAX_KEYWORDS)
+    const ungroupedClusters = clusters.filter(c => 
+      c.length < MIN_GROUP_SIZE || !keywordClusters.includes(c)
+    )
+    
+    // 4단계: 각 클러스터에 키워드 할당 (키워드 그룹만)
+    const groupsWithIdeas: Array<[string, Idea[]]> = keywordClusters.map((cluster) => {
+      const keyword = generateKeywordFromGroup(cluster)
+      return [keyword, cluster]
+    })
+    
     const groupCount = groupsWithIdeas.length
+    
+    // 디버깅: 키워드 그룹 생성 확인
+    console.log('유사도 기반 키워드 그룹 생성:', {
+      totalIdeas: ideas.length,
+      totalClusters: clusters.length,
+      keywordClusters: keywordClusters.length,
+      ungroupedClusters: ungroupedClusters.length,
+      groups: groupsWithIdeas.map(([kw, ideas]) => ({ keyword: kw, count: ideas.length }))
+    })
     const radius = 700 // 키워드 그룹 간 간격
     
     // 먼저 아이디어 노드들의 위치를 계산 (임시 그룹 중심 사용)
@@ -348,113 +501,112 @@ const ConnectMapPage = () => {
       index++
     })
 
+    // 아이디어를 키워드 그룹에 매핑
+    const ideaToKeywordMap = new Map<string, string>()
+    groupsWithIdeas.forEach(([keyword, ideasList]) => {
+      ideasList.forEach(idea => {
+        ideaToKeywordMap.set(idea.id, keyword)
+      })
+    })
+    
+    // 키워드 그룹에 속하지 않은 모든 아이디어 수집
+    const allUngroupedIdeas: Idea[] = []
+    ungroupedClusters.forEach(cluster => {
+      cluster.forEach(idea => {
+        if (!ideaToKeywordMap.has(idea.id)) {
+          allUngroupedIdeas.push(idea)
+        }
+      })
+    })
+    
     // 아이디어 노드 생성 (각 아이디어는 한 번만 표시)
     const nodes: IdeaNode[] = []
     const processedIdeaIds = new Set<string>()
     
-    // 각 아이디어를 주 키워드(첫 번째 키워드)에만 배치
-    // 단, 키워드가 2개인 경우 두 키워드 영역 사이에 배치
+    // 1. 키워드 그룹에 속한 아이디어들 배치
     ideas.forEach(idea => {
       if (processedIdeaIds.has(idea.id)) return
+      
+      const assignedKeyword = ideaToKeywordMap.get(idea.id)
+      if (!assignedKeyword) return // 키워드 그룹에 속하지 않은 것은 나중에 처리
+      
       processedIdeaIds.add(idea.id)
       
-      const primaryKeyword = idea.keywords[0] || 'Technology'
-      const secondaryKeyword = idea.keywords[1]
-      const hasTwoKeywords = idea.keywords.length >= 2 && secondaryKeyword && tempGroups.has(secondaryKeyword)
+      const tempGroup = tempGroups.get(assignedKeyword)
+      if (!tempGroup) return
       
-      let finalPosition: { x: number; y: number; z: number }
-      let finalKeyword: string
+      const groupIdeas = tempGroup.ideas
+      const ideaIndex = groupIdeas.findIndex(i => i.id === idea.id)
+      if (ideaIndex === -1) return
       
-      if (hasTwoKeywords) {
-        // 키워드가 2개인 경우: 두 키워드 그룹 위치의 중간 지점에 배치
-        const primaryGroup = tempGroups.get(primaryKeyword)
-        const secondaryGroup = tempGroups.get(secondaryKeyword)
-        
-        if (!primaryGroup || !secondaryGroup) {
-          // 두 그룹이 모두 존재하지 않으면 기본 로직 사용
-          const tempGroup = primaryGroup || tempGroups.get(primaryKeyword)
-          if (!tempGroup) return
-          const groupIdeas = Array.from(new Set(tempGroup.ideas.map(i => i.id))).map(id => 
-            tempGroup.ideas.find(i => i.id === id)!
-          )
-          const ideaIndex = groupIdeas.findIndex(i => i.id === idea.id)
-          if (ideaIndex === -1) return
-          
-          const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-          const ideaY = groupIdeas.length > 1 ? 1 - (ideaIndex / (groupIdeas.length - 1)) * 2 : 0
-          const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
-          const theta = goldenAngle * ideaIndex
-          // 노드 간 간격을 늘리기 위해 박스 크기와 배치 반경 증가
-          const minNodeSpacing = 150
-          const tempBoxWidth = Math.max(400, Math.min(1000, groupIdeas.length * minNodeSpacing))
-          const tempBoxHeight = Math.max(300, Math.min(900, groupIdeas.length * minNodeSpacing * 0.8))
-          const tempBoxDepth = Math.max(200, Math.min(700, groupIdeas.length * minNodeSpacing * 0.6))
-          const safeRadiusX = (tempBoxWidth / 2) * 0.65 // 0.7 -> 0.65로 감소하여 간격 증가
-          const safeRadiusY = (tempBoxHeight / 2) * 0.65
-          const safeRadiusZ = (tempBoxDepth / 2) * 0.65
-          const sphereRadius = Math.min(safeRadiusX, safeRadiusZ)
-          
-          finalPosition = {
-            x: tempGroup.tempPosition.x + Math.cos(theta) * radius_at_y * sphereRadius,
-            y: tempGroup.tempPosition.y + ideaY * safeRadiusY,
-            z: tempGroup.tempPosition.z + Math.sin(theta) * radius_at_y * sphereRadius
-          }
-          finalKeyword = primaryKeyword
-        } else {
-          // 두 그룹 위치의 중간 지점
-          finalPosition = {
-            x: (primaryGroup.tempPosition.x + secondaryGroup.tempPosition.x) / 2,
-            y: (primaryGroup.tempPosition.y + secondaryGroup.tempPosition.y) / 2,
-            z: (primaryGroup.tempPosition.z + secondaryGroup.tempPosition.z) / 2,
-          }
-          finalKeyword = primaryKeyword // 렌더링용으로는 primaryKeyword 사용
-        }
-      } else {
-        // 키워드가 1개인 경우: 기존 로직 사용
-        const tempGroup = tempGroups.get(primaryKeyword)
-        if (!tempGroup) return
-        
-        const groupIdeas = Array.from(new Set(tempGroup.ideas.map(i => i.id))).map(id => 
-          tempGroup.ideas.find(i => i.id === id)!
-        )
-        const ideaIndex = groupIdeas.findIndex(i => i.id === idea.id)
-        if (ideaIndex === -1) return
-        
-        // 노드 간 간격을 늘리기 위해 박스 크기와 배치 반경 증가
-        const minNodeSpacing = 200 // 더 큰 간격
-        const tempBoxWidth = Math.max(500, groupIdeas.length * minNodeSpacing)
-        const tempBoxHeight = Math.max(400, groupIdeas.length * minNodeSpacing * 0.8)
-        const tempBoxDepth = Math.max(300, groupIdeas.length * minNodeSpacing * 0.6)
-        
-        const safeRadiusX = (tempBoxWidth / 2) * 0.8 // 더 넓게
-        const safeRadiusY = (tempBoxHeight / 2) * 0.8
-        const safeRadiusZ = (tempBoxDepth / 2) * 0.8
-        
-        // 노드 ID를 기반으로 고유한 시드 생성
-        const nodeSeed = idea.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-        const uniqueIdx = ideaIndex + (nodeSeed % 100) / 1000 // 0.000~0.099 범위의 고유 오프셋
-        
-        // 구 형태로 배치하되 각도와 반경을 더 균등하게
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-        const ideaY = groupIdeas.length > 1 ? 1 - (uniqueIdx / (groupIdeas.length - 1)) * 2 : 0
-        const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
-        // 각 노드마다 고유한 각도 부여 (노드 ID 기반)
-        const theta = goldenAngle * uniqueIdx + (nodeSeed % 1000) * 0.001
-        
-        const sphereRadius = Math.min(safeRadiusX, safeRadiusZ) * 0.75
-        finalPosition = {
-          x: tempGroup.tempPosition.x + Math.cos(theta) * radius_at_y * sphereRadius,
-          y: tempGroup.tempPosition.y + ideaY * safeRadiusY * 0.75,
-          z: tempGroup.tempPosition.z + Math.sin(theta) * radius_at_y * sphereRadius
-        }
-        finalKeyword = primaryKeyword
+      // 노드 간 간격을 늘리기 위해 박스 크기와 배치 반경 증가
+      const minNodeSpacing = 200
+      const tempBoxWidth = Math.max(500, groupIdeas.length * minNodeSpacing)
+      const tempBoxHeight = Math.max(400, groupIdeas.length * minNodeSpacing * 0.8)
+      const tempBoxDepth = Math.max(300, groupIdeas.length * minNodeSpacing * 0.6)
+      
+      const safeRadiusX = (tempBoxWidth / 2) * 0.8
+      const safeRadiusY = (tempBoxHeight / 2) * 0.8
+      const safeRadiusZ = (tempBoxDepth / 2) * 0.8
+      
+      // 노드 ID를 기반으로 고유한 시드 생성
+      const nodeSeed = idea.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      const uniqueIdx = ideaIndex + (nodeSeed % 100) / 1000
+      
+      // 구 형태로 배치
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+      const ideaY = groupIdeas.length > 1 ? 1 - (uniqueIdx / (groupIdeas.length - 1)) * 2 : 0
+      const radius_at_y = Math.sqrt(Math.max(0, 1 - ideaY * ideaY))
+      const theta = goldenAngle * uniqueIdx + (nodeSeed % 1000) * 0.001
+      
+      const sphereRadius = Math.min(safeRadiusX, safeRadiusZ) * 0.75
+      const finalPosition = {
+        x: tempGroup.tempPosition.x + Math.cos(theta) * radius_at_y * sphereRadius,
+        y: tempGroup.tempPosition.y + ideaY * safeRadiusY * 0.75,
+        z: tempGroup.tempPosition.z + Math.sin(theta) * radius_at_y * sphereRadius
       }
-
+      
       nodes.push({
         ...idea,
         position: finalPosition,
-        keyword: finalKeyword,
+        keyword: assignedKeyword,
       })
+    })
+    
+    // 2. 키워드 그룹에 속하지 않은 아이디어들을 중앙에서 먼 영역에 그레이 색상으로 배치
+    if (allUngroupedIdeas.length > 0) {
+      const ungroupedRadius = 1200 // 중앙에서 먼 거리
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+      
+      allUngroupedIdeas.forEach((idea, index) => {
+        if (processedIdeaIds.has(idea.id)) return
+        processedIdeaIds.add(idea.id)
+        
+        // 구 형태로 중앙에서 먼 영역에 분산 배치
+        const y = allUngroupedIdeas.length > 1 ? 1 - (index / (allUngroupedIdeas.length - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(1 - y * y)
+        const theta = goldenAngle * index
+        
+        const position = {
+          x: Math.cos(theta) * radius_at_y * ungroupedRadius,
+          y: y * 700,
+          z: Math.sin(theta) * radius_at_y * ungroupedRadius
+        }
+        
+        nodes.push({
+          ...idea,
+          position,
+          keyword: 'ungrouped',
+        })
+      })
+    }
+    
+    // 디버깅: 노드 생성 확인
+    console.log('노드 생성:', {
+      totalIdeas: ideas.length,
+      keywordGroupNodes: nodes.filter(n => n.keyword !== 'ungrouped').length,
+      ungroupedNodes: nodes.filter(n => n.keyword === 'ungrouped').length,
+      allNodes: nodes.length
     })
 
     // 각 키워드 그룹별로 노드들의 실제 위치 범위 계산 및 재조정
@@ -472,7 +624,9 @@ const ConnectMapPage = () => {
     
     groupsWithIdeas.forEach(([keyword, ideasList]) => {
       const keywordNodeList = keywordNodes.get(keyword) || []
-      if (keywordNodeList.length === 0) return
+      
+      // 노드가 없어도 그룹은 생성 (아이디어가 있으면 그룹 생성)
+      // 노드가 없을 경우 기본 위치와 크기 사용
       
       // 키워드가 2개인 노드는 별도로 수집 (나중에 교집합 위치에 배치)
       keywordNodeList.forEach(node => {
@@ -489,6 +643,8 @@ const ConnectMapPage = () => {
       
       // 노드가 하나일 때와 여러 개일 때 처리
       let minX, maxX, minY, maxY, minZ, maxZ
+      let centerX, centerY, centerZ
+      
       if (singleKeywordNodePositions.length === 1) {
         const pos = singleKeywordNodePositions[0]
         const singleNodePadding = 100
@@ -498,6 +654,9 @@ const ConnectMapPage = () => {
         maxY = pos.y + singleNodePadding
         minZ = pos.z - singleNodePadding
         maxZ = pos.z + singleNodePadding
+        centerX = pos.x
+        centerY = pos.y
+        centerZ = pos.z
       } else if (singleKeywordNodePositions.length > 1) {
         minX = Math.min(...singleKeywordNodePositions.map(p => p.x))
         maxX = Math.max(...singleKeywordNodePositions.map(p => p.x))
@@ -505,12 +664,36 @@ const ConnectMapPage = () => {
         maxY = Math.max(...singleKeywordNodePositions.map(p => p.y))
         minZ = Math.min(...singleKeywordNodePositions.map(p => p.z))
         maxZ = Math.max(...singleKeywordNodePositions.map(p => p.z))
+        centerX = (minX + maxX) / 2
+        centerY = (minY + maxY) / 2
+        centerZ = (minZ + maxZ) / 2
       } else {
-        // 단일 키워드 노드가 없으면 기본값 사용
-        const defaultPos = keywordNodeList[0]?.position || { x: 0, y: 0, z: 0 }
-        minX = maxX = defaultPos.x
-        minY = maxY = defaultPos.y
-        minZ = maxZ = defaultPos.z
+        // 노드가 없을 때: 임시 그룹 위치 사용 또는 기본 위치
+        const tempGroup = tempGroups.get(keyword)
+        if (tempGroup) {
+          centerX = tempGroup.tempPosition.x
+          centerY = tempGroup.tempPosition.y
+          centerZ = tempGroup.tempPosition.z
+        } else {
+          // 기본 위치 (구 형태 배치에서 계산)
+          const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+          const groupIndex = groupsWithIdeas.findIndex(([kw]) => kw === keyword)
+          const y = groupCount > 1 ? 1 - (groupIndex / (groupCount - 1)) * 2 : 0
+          const radius_at_y = Math.sqrt(1 - y * y)
+          const theta = goldenAngle * groupIndex
+          const radius = 700
+          centerX = Math.cos(theta) * radius_at_y * radius
+          centerY = y * 500
+          centerZ = Math.sin(theta) * radius_at_y * radius
+        }
+        // 기본 박스 크기
+        const defaultPadding = 200
+        minX = centerX - defaultPadding
+        maxX = centerX + defaultPadding
+        minY = centerY - defaultPadding
+        maxY = centerY + defaultPadding
+        minZ = centerZ - defaultPadding
+        maxZ = centerZ + defaultPadding
       }
       
       // 박스 크기는 노드 범위 + 여백 (노드가 박스 안에 확실히 들어가도록)
@@ -528,10 +711,7 @@ const ConnectMapPage = () => {
       const boxHeight = Math.max(minBoxHeight, maxY - minY + padding * 2)
       const boxDepth = Math.max(minBoxDepth, maxZ - minZ + padding * 2)
       
-      // 박스 중심은 노드들의 중심
-      const centerX = (minX + maxX) / 2
-      const centerY = (minY + maxY) / 2
-      const centerZ = (minZ + maxZ) / 2
+      // 박스 중심은 이미 계산됨 (노드가 없을 때도 처리됨)
       
       // 박스 경계 내부에서 노드들이 확실히 들어가도록 위치 재조정
       const halfWidth = boxWidth / 2 - padding
@@ -634,9 +814,14 @@ const ConnectMapPage = () => {
         })
       })
       
+      // 키워드 색상 할당
+      // 키워드 색상 할당 (그룹 인덱스 사용, 최대 7개)
+      const keywordIndex = groups.length
+      const keywordColor = getKeywordColor(keywordIndex, false)
+      
       groups.push({
         keyword,
-        color: KEYWORD_COLORS[keyword] || '#666666',
+        color: keywordColor,
         ideas: ideasList,
         position: { x: centerX, y: centerY, z: centerZ },
         boxSize: {
@@ -827,52 +1012,47 @@ const ConnectMapPage = () => {
 
     setKeywordGroups(groups)
 
-    // 연결선 생성
+    // 연결선 생성 (유사도 기반)
     const conns: Connection[] = []
-    
-    // 같은 키워드 내부 연결 (유사도 기반)
-    const nodesForConnections = updatedNodes.length > 0 ? updatedNodes : nodes
-    const SIMILARITY_THRESHOLD_SAME = 0.15 // 같은 키워드 내부 연결 임계값 (15%)
-    const SIMILARITY_THRESHOLD_CROSS = 0.20 // 다른 키워드 간 연결 임계값 (20%)
-    
-    groups.forEach(group => {
-      const groupNodes = nodesForConnections.filter((n: IdeaNode) => n.keyword === group.keyword)
-      for (let i = 0; i < groupNodes.length; i++) {
-        for (let j = i + 1; j < groupNodes.length; j++) {
-          // 유사도 계산
-          const similarity = calculateSimilarity(groupNodes[i], groupNodes[j])
-          
-          // 유사도가 임계값 이상이면 연결
-          if (similarity >= SIMILARITY_THRESHOLD_SAME) {
-            // 유사도가 낮을수록 점선 확률 증가
-            const isDotted = similarity < 0.25 // 유사도가 0.25 미만이면 점선
-            conns.push({
-              source: groupNodes[i],
-              target: groupNodes[j],
-              type: 'same-keyword',
-              isDotted,
-            })
-          }
-        }
+    // updatedNodes에 ungrouped 노드들도 추가
+    const ungroupedNodes = nodes.filter(n => n.keyword === 'ungrouped')
+    ungroupedNodes.forEach(node => {
+      if (!updatedNodes.find(n => n.id === node.id)) {
+        updatedNodes.push(node)
       }
     })
-
-    // 다른 키워드 간 연결 (유사도 기반)
+    
+    const nodesForConnections = updatedNodes.length > 0 ? updatedNodes : nodes
+    
+    // 디버깅: 최종 노드 확인
+    console.log('최종 노드:', {
+      totalNodes: nodesForConnections.length,
+      updatedNodes: updatedNodes.length,
+      originalNodes: nodes.length
+    })
+    const SIMILARITY_THRESHOLD = 0.15 // 연결 임계값 (15%)
+    
+    // 모든 노드 쌍에 대해 유사도 계산 및 연결
     for (let i = 0; i < nodesForConnections.length; i++) {
       for (let j = i + 1; j < nodesForConnections.length; j++) {
-        if (nodesForConnections[i].keyword !== nodesForConnections[j].keyword) {
-          // 유사도 계산
-          const similarity = calculateSimilarity(nodesForConnections[i], nodesForConnections[j])
+        const node1 = nodesForConnections[i]
+        const node2 = nodesForConnections[j]
+        
+        // 유사도 계산
+        const similarity = calculateSimilarity(node1, node2)
+        
+        // 유사도가 임계값 이상이면 연결
+        if (similarity >= SIMILARITY_THRESHOLD) {
+          const sameKeyword = node1.keyword === node2.keyword
+          // 유사도가 낮을수록 점선 확률 증가
+          const isDotted = similarity < 0.25 // 유사도가 0.25 미만이면 점선
           
-          // 유사도가 임계값 이상이면 연결 (유사한 맥락이나 내용)
-          if (similarity >= SIMILARITY_THRESHOLD_CROSS) {
-            conns.push({
-              source: nodesForConnections[i],
-              target: nodesForConnections[j],
-              type: 'cross-keyword',
-              isDotted: false,
-            })
-          }
+          conns.push({
+            source: node1,
+            target: node2,
+            type: sameKeyword ? 'same-keyword' : 'cross-keyword',
+            isDotted,
+          })
         }
       }
     }
@@ -1417,6 +1597,27 @@ const ConnectMapPage = () => {
 
   return (
     <div className="connect-map-page">
+        {/* 임시: 디자인 아이디어 데이터 삽입 버튼 (개발용) */}
+        <button
+          onClick={handleInsertDesignIdeas}
+          style={{
+            position: 'fixed',
+            top: '80px',
+            right: '20px',
+            zIndex: 10000,
+            padding: '10px 20px',
+            backgroundColor: '#1e1e1e',
+            color: '#dddddd',
+            border: '1px solid #666666',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontFamily: 'Pretendard, Montserrat, sans-serif',
+            borderRadius: '0',
+          }}
+        >
+          디자인 데이터 삽입
+        </button>
+        
         <div
           className={`map-container ${isDragging ? `dragging-${dragMode}` : ''}`}
           ref={containerRef}
@@ -1530,8 +1731,9 @@ const ConnectMapPage = () => {
               const finalScale = baseScale * hoverScale
               
               // 그라데이션 테두리를 위한 색상
-              const primaryColor = group?.color || KEYWORD_COLORS[node.keyword] || '#666666'
-              const secondaryColor = secondGroup?.color || KEYWORD_COLORS[secondKeyword || ''] || primaryColor
+              // 그룹핑되지 않은 노드는 그레이 색상
+              const primaryColor = group?.color || GRAY_COLORS['500'] || '#666666'
+              const secondaryColor = secondGroup?.color || (secondKeyword ? GRAY_COLORS['500'] || '#666666' : primaryColor)
               const useGradient = hasTwoKeywords && secondGroup && primaryColor !== secondaryColor && secondKeyword
 
               return (
@@ -1756,7 +1958,7 @@ const ConnectMapPage = () => {
                   <div 
                     key={idx} 
                     className="node-detail-keyword-tag"
-                    style={{ backgroundColor: KEYWORD_COLORS[keyword] || '#666666' }}
+                    style={{ backgroundColor: GRAY_COLORS['500'] || '#666666' }}
                   >
                     {keyword}
                   </div>
@@ -1813,7 +2015,7 @@ const ConnectMapPage = () => {
                         <div key={idea.id} className="node-detail-connected-idea-item">
                           <div 
                             className="node-detail-connected-idea-dot"
-                            style={{ backgroundColor: KEYWORD_COLORS[ideaKeyword] || '#666666' }}
+                            style={{ backgroundColor: GRAY_COLORS['500'] || '#666666' }}
                           />
                           <p className="node-detail-connected-idea-text">{idea.title}</p>
                         </div>

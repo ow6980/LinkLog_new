@@ -34,27 +34,40 @@ create policy "Users can delete their own ideas"
   on ideas for delete
   using (auth.uid() = user_id);
 
--- Initial Mock Data Insertion
--- Re-mapped keywords to strictly match the 7 available keywords:
--- Technology, Innovation, Data, Design, Business, Research, Development
-insert into ideas (title, content, keywords, source_url, bookmarked, created_at, user_id) values
-('AI 기반 개인화 추천 시스템', '머신러닝을 활용하여 사용자의 행동 패턴을 분석하고 개인화된 콘텐츠를 추천하는 시스템을 개발하고 싶다.', ARRAY['Technology', 'Data'], 'https://example.com/ai-recommendation', true, '2024-01-15T10:30:00.000Z', 'USER_ID_HERE'),
-('블록체인을 활용한 디지털 신원 인증', '분산 원장 기술을 사용하여 개인의 신원 정보를 안전하게 관리하고 검증할 수 있는 시스템.', ARRAY['Technology', 'Innovation'], 'https://example.com/blockchain-identity', true, '2024-01-18T14:20:00.000Z', 'USER_ID_HERE'),
-('실시간 협업 에디터 개발', '여러 사용자가 동시에 문서를 편집할 수 있는 실시간 협업 에디터.', ARRAY['Development', 'Technology'], 'https://example.com/collaborative-editor', false, '2024-01-20T09:15:00.000Z', 'USER_ID_HERE'),
-('IoT 센서 데이터 시각화 대시보드', '다양한 IoT 센서에서 수집된 데이터를 실시간으로 모니터링하고 시각화하는 대시보드.', ARRAY['Data', 'Design'], 'https://example.com/iot-dashboard', true, '2024-01-22T16:45:00.000Z', 'USER_ID_HERE'),
-('음성 인식 기반 스마트 홈 제어', '자연어 처리와 음성 인식을 결합하여 음성 명령으로 집안의 전자기기를 제어하는 시스템.', ARRAY['Technology', 'Innovation'], 'https://example.com/voice-control', false, '2024-01-25T11:30:00.000Z', 'USER_ID_HERE'),
-('그래프 데이터베이스를 활용한 소셜 네트워크 분석', 'Neo4j나 ArangoDB 같은 그래프 데이터베이스를 사용하여 소셜 네트워크의 관계를 모델링하고 분석한다.', ARRAY['Data', 'Research'], 'https://example.com/graph-database', true, '2024-01-28T13:20:00.000Z', 'USER_ID_HERE'),
-('마이크로서비스 아키텍처 설계 패턴', '대규모 애플리케이션을 작은 독립적인 서비스로 분해하는 마이크로서비스 아키텍처.', ARRAY['Development', 'Design'], 'https://example.com/microservices', false, '2024-02-01T10:00:00.000Z', 'USER_ID_HERE'),
-('컴퓨터 비전을 활용한 의료 이미지 분석', '딥러닝 모델을 사용하여 X-ray, CT 스캔, MRI 이미지를 분석하고 질병을 조기 진단하는 시스템.', ARRAY['Technology', 'Research'], 'https://example.com/medical-ai', true, '2024-02-03T15:30:00.000Z', 'USER_ID_HERE'),
-('서버리스 함수를 활용한 이벤트 처리 파이프라인', 'AWS Lambda나 Google Cloud Functions를 사용하여 이벤트 기반 아키텍처를 구현한다.', ARRAY['Development', 'Technology'], 'https://example.com/serverless', false, '2024-02-05T09:45:00.000Z', 'USER_ID_HERE'),
-('증강현실(AR) 기반 쇼핑 경험', 'AR 기술을 활용하여 사용자가 가상으로 제품을 체험할 수 있는 쇼핑 앱.', ARRAY['Technology', 'Design'], 'https://example.com/ar-shopping', true, '2024-02-08T12:15:00.000Z', 'USER_ID_HERE'),
-('자동화된 테스트 프레임워크 구축', 'CI/CD 파이프라인에 통합할 수 있는 자동화된 테스트 프레임워크.', ARRAY['Development', 'Innovation'], 'https://example.com/testing-framework', false, '2024-02-10T14:00:00.000Z', 'USER_ID_HERE'),
-('엣지 컴퓨팅을 활용한 실시간 데이터 처리', '클라우드 대신 엣지 디바이스에서 데이터를 처리하여 지연 시간을 최소화한다.', ARRAY['Technology', 'Data'], 'https://example.com/edge-computing', true, '2024-02-12T16:30:00.000Z', 'USER_ID_HERE'),
-('자연어 생성 모델을 활용한 콘텐츠 작성 도구', 'GPT나 BART 같은 언어 모델을 활용하여 블로그 포스트, 마케팅 문구, 이메일 초안 등을 자동으로 생성하는 도구.', ARRAY['Business', 'Innovation'], 'https://example.com/nlg-tool', false, '2024-02-15T10:20:00.000Z', 'USER_ID_HERE'),
-('분산 추적 시스템 구현', '마이크로서비스 환경에서 요청의 흐름을 추적하는 분산 추적 시스템.', ARRAY['Development', 'Data'], 'https://example.com/distributed-tracing', true, '2024-02-18T13:45:00.000Z', 'USER_ID_HERE'),
-('웹소켓을 활용한 실시간 채팅 시스템', 'WebSocket을 사용하여 다중 사용자 간 실시간 채팅을 구현한다.', ARRAY['Development', 'Technology'], 'https://example.com/realtime-chat', false, '2024-02-20T11:00:00.000Z', 'USER_ID_HERE'),
-('강화학습을 활용한 게임 AI', 'Deep Q-Network(DQN)나 Proximal Policy Optimization(PPO) 같은 강화학습 알고리즘을 사용하여 게임 AI를 학습시킨다.', ARRAY['Research', 'Technology'], 'https://example.com/rl-game-ai', true, '2024-02-22T15:15:00.000Z', 'USER_ID_HERE'),
-('GraphQL API 설계 및 최적화', 'REST API 대신 GraphQL을 사용하여 클라이언트가 필요한 데이터만 요청할 수 있게 한다.', ARRAY['Development', 'Data'], 'https://example.com/graphql-api', false, '2024-02-25T09:30:00.000Z', 'USER_ID_HERE'),
-('쿠버네티스 클러스터 자동 스케일링', 'Horizontal Pod Autoscaler(HPA)와 Cluster Autoscaler를 설정하여 트래픽에 따라 자동으로 파드와 노드를 스케일링한다.', ARRAY['Development', 'Technology'], 'https://example.com/k8s-autoscaling', true, '2024-02-28T14:00:00.000Z', 'USER_ID_HERE'),
-('차세대 웹 표준: WebAssembly 활용', 'WebAssembly를 사용하여 C/C++/Rust로 작성된 고성능 코드를 브라우저에서 실행한다.', ARRAY['Technology', 'Development'], 'https://example.com/webassembly', false, '2024-03-02T10:45:00.000Z', 'USER_ID_HERE'),
-('데이터 레이크 아키텍처 설계', '대용량 데이터를 저장하고 분석하기 위한 데이터 레이크를 구축한다.', ARRAY['Data', 'Business'], 'https://example.com/data-lake', true, '2024-03-05T16:20:00.000Z', 'USER_ID_HERE');
+-- 디자인 분야 아이디어 데이터 (키워드 제외, 타이틀만)
+-- 유사도 기반 클러스터링을 위해 관련된 디자인 아이디어들로 구성
+INSERT INTO ideas (title, content, keywords, source_url, bookmarked, created_at, user_id) VALUES
+-- UI/UX 디자인 관련
+('모바일 앱의 직관적인 네비게이션 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-15T10:30:00.000Z', NULL),
+('사용자 경험을 개선하는 마이크로 인터랙션 디자인', NULL, ARRAY[]::text[], NULL, true, '2024-01-16T11:00:00.000Z', NULL),
+('접근성을 고려한 UI 컴포넌트 디자인 시스템', NULL, ARRAY[]::text[], NULL, false, '2024-01-17T14:20:00.000Z', NULL),
+('다크모드와 라이트모드 전환 애니메이션', NULL, ARRAY[]::text[], NULL, true, '2024-01-18T09:15:00.000Z', NULL),
+('터치 제스처 기반 인터페이스 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-19T16:45:00.000Z', NULL),
+
+-- 웹 디자인 관련
+('반응형 웹사이트의 그리드 레이아웃 시스템', NULL, ARRAY[]::text[], NULL, true, '2024-01-20T10:30:00.000Z', NULL),
+('스크롤 기반 스토리텔링 웹 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-21T11:20:00.000Z', NULL),
+('패럴랙스 스크롤을 활용한 랜딩 페이지', NULL, ARRAY[]::text[], NULL, true, '2024-01-22T13:10:00.000Z', NULL),
+('웹 폰트와 타이포그래피 시스템 구축', NULL, ARRAY[]::text[], NULL, false, '2024-01-23T15:00:00.000Z', NULL),
+('CSS 그리드와 플렉스박스를 활용한 레이아웃', NULL, ARRAY[]::text[], NULL, true, '2024-01-24T09:30:00.000Z', NULL),
+
+-- 브랜딩 및 그래픽 디자인
+('브랜드 아이덴티티를 반영한 로고 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-25T10:15:00.000Z', NULL),
+('컬러 팔레트와 브랜드 가이드라인 제작', NULL, ARRAY[]::text[], NULL, true, '2024-01-26T14:45:00.000Z', NULL),
+('일관된 비주얼 언어를 위한 디자인 시스템', NULL, ARRAY[]::text[], NULL, false, '2024-01-27T11:30:00.000Z', NULL),
+('인포그래픽을 활용한 데이터 시각화', NULL, ARRAY[]::text[], NULL, true, '2024-01-28T16:20:00.000Z', NULL),
+('일러스트레이션 스타일 가이드 개발', NULL, ARRAY[]::text[], NULL, false, '2024-01-29T09:00:00.000Z', NULL),
+
+-- 인터랙션 디자인
+('프로토타이핑 도구를 활용한 인터랙션 설계', NULL, ARRAY[]::text[], NULL, true, '2024-01-30T10:30:00.000Z', NULL),
+('사용자 플로우와 와이어프레임 설계', NULL, ARRAY[]::text[], NULL, false, '2024-01-31T13:15:00.000Z', NULL),
+('애니메이션 타이밍과 이징 함수 연구', NULL, ARRAY[]::text[], NULL, true, '2024-02-01T15:45:00.000Z', NULL),
+('피드백 메커니즘을 통한 사용자 경험 개선', NULL, ARRAY[]::text[], NULL, false, '2024-02-02T11:20:00.000Z', NULL),
+('모션 디자인 원칙과 베스트 프랙티스', NULL, ARRAY[]::text[], NULL, true, '2024-02-03T14:00:00.000Z', NULL),
+
+-- 디자인 도구 및 워크플로우
+('Figma 컴포넌트 라이브러리 구축', NULL, ARRAY[]::text[], NULL, false, '2024-02-04T09:30:00.000Z', NULL),
+('디자인 토큰과 변수를 활용한 시스템', NULL, ARRAY[]::text[], NULL, true, '2024-02-05T16:10:00.000Z', NULL),
+('디자이너와 개발자 간 협업 워크플로우', NULL, ARRAY[]::text[], NULL, false, '2024-02-06T10:45:00.000Z', NULL),
+('디자인 시스템 문서화와 유지보수', NULL, ARRAY[]::text[], NULL, true, '2024-02-07T13:30:00.000Z', NULL),
+('자동화된 디자인 검증 도구 개발', NULL, ARRAY[]::text[], NULL, false, '2024-02-08T15:20:00.000Z', NULL);
