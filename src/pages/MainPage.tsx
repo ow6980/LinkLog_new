@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
 import './MainPage.css'
-import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
+import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
 
 const MainPage = () => {
   const navigate = useNavigate()
@@ -13,62 +13,15 @@ const MainPage = () => {
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // 주제/키워드 자동 추출 (7개 고정 키워드 중에서만 추출)
+  // 텍스트에서 의미있는 키워드 자동 추출
   const extractKeywords = (text: string): string[] => {
     if (!text.trim()) return []
 
-    const textLower = text.toLowerCase()
-    const keywordScores: Array<{ keyword: string; score: number }> = []
-
-    // 각 키워드에 대해 텍스트에서 매칭되는 빈도와 위치 기반 점수 계산
-    AVAILABLE_KEYWORDS.forEach(keyword => {
-      if (selectedKeywords.includes(keyword)) return
-
-      const keywordLower = keyword.toLowerCase()
-      let score = 0
-
-      // 1. 정확한 키워드 매칭 (높은 점수)
-      const exactMatches = (textLower.match(new RegExp(`\\b${keywordLower}\\b`, 'gi')) || []).length
-      score += exactMatches * 10
-
-      // 2. 키워드와 관련된 단어 패턴 매칭
-      const relatedWords: Record<string, string[]> = {
-        'technology': ['tech', 'technical', 'technological', 'software', 'hardware', 'system', 'platform', 'application', 'algorithm', 'computing', 'digital', 'electronic', 'ai', 'ml', 'iot', 'cloud'],
-        'innovation': ['innovative', 'innovate', 'novel', 'new', 'breakthrough', 'revolutionary', 'disruptive', 'creative', 'original', 'pioneering'],
-        'data': ['dataset', 'database', 'analytics', 'analysis', 'information', 'dataset', 'processing', 'mining', 'collection', 'storage'],
-        'design': ['designing', 'designed', 'architecture', 'structure', 'layout', 'interface', 'ui', 'ux', 'user experience', 'visual'],
-        'business': ['business', 'commercial', 'enterprise', 'company', 'organization', 'market', 'customer', 'client', 'revenue', 'profit'],
-        'research': ['research', 'study', 'investigation', 'experiment', 'academic', 'scientific', 'analysis', 'findings', 'discovery'],
-        'development': ['develop', 'developing', 'building', 'creating', 'construction', 'implementation', 'programming', 'coding', 'engineering']
-      }
-
-      if (relatedWords[keywordLower]) {
-        relatedWords[keywordLower].forEach(word => {
-          const regex = new RegExp(`\\b${word}\\b`, 'gi')
-          const matches = textLower.match(regex)
-          if (matches) {
-            score += matches.length * 3
-          }
-        })
-      }
-
-      // 3. 문장 앞부분에 나타나는 경우 추가 점수
-      const firstSentence = text.split(/[.!?。！？\n]/)[0]?.toLowerCase() || ''
-      if (firstSentence.includes(keywordLower)) {
-        score += 5
-      }
-
-      if (score > 0) {
-        keywordScores.push({ keyword, score })
-      }
-    })
-
-    // 점수 순으로 정렬하고 상위 7개 선택 (이미 7개 제한이므로 모두 반환)
-    return keywordScores
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 7)
-      .map(item => item.keyword)
-      .filter(k => k && !selectedKeywords.includes(k))
+    // 새로운 키워드 추출 함수 사용 (최대 7개)
+    const extracted = extractMeaningfulKeywords(text, 7)
+    
+    // 이미 선택된 키워드는 제외
+    return extracted.filter(k => !selectedKeywords.includes(k))
   }
 
   useEffect(() => {

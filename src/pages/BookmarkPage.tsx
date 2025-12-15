@@ -2,43 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
-import variablesData from '../variables.json'
+import BookmarkCard from '../components/BookmarkCard'
 import './BookmarkPage.css'
-
-// color helpers
-const rgbToHex = (r: number, g: number, b: number): string => {
-  const toHex = (n: number) => {
-    const hex = Math.round(n * 255).toString(16)
-    return hex.length === 1 ? '0' + hex : hex
-  }
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
-
-const extractTagColors = () => {
-  const tagColors: Record<string, string> = {}
-  variablesData.variables.forEach((variable: any) => {
-    if (variable.name.startsWith('color/tag/')) {
-      const colorName = variable.name.replace('color/tag/', '')
-      const rgb = variable.resolvedValuesByMode['12:0'].resolvedValue
-      tagColors[colorName] = rgbToHex(rgb.r, rgb.g, rgb.b)
-    }
-  })
-  return tagColors
-}
-
-const TAG_COLORS = extractTagColors()
-const KEYWORD_COLORS: Record<string, string> = {
-  Keyword1: TAG_COLORS.red || '#ff4848',
-  Keyword2: TAG_COLORS.yellow || '#ffff06',
-  Keyword3: TAG_COLORS.skyblue || '#0de7ff',
-  Technology: TAG_COLORS.red || '#ff4848',
-  Innovation: TAG_COLORS.orange || '#ffae2b',
-  Data: TAG_COLORS.yellow || '#ffff06',
-  Design: TAG_COLORS.skyblue || '#0de7ff',
-  Business: TAG_COLORS.violet || '#8a38f5',
-  Research: TAG_COLORS.green || '#77ff00',
-  Development: TAG_COLORS.blue || '#0d52ff',
-}
 
 interface Idea {
   id: string
@@ -52,7 +17,7 @@ interface Idea {
 
 type SortOrder = 'desc' | 'asc'
 
-// ... (calculateSimilarity function remains same - needs to handle nullable content)
+// Calculate similarity between two ideas
 const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
   const text1 = `${idea1.title} ${idea1.content || ''}`.toLowerCase()
   const text2 = `${idea2.title} ${idea2.content || ''}`.toLowerCase()
@@ -73,7 +38,6 @@ const BookmarkPage = () => {
   const { isAuthenticated } = useAuth()
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [allIdeas, setAllIdeas] = useState<Idea[]>([]) // Store all ideas for connection calculation
-  // const [sortOrder, setSortOrder] = useState<SortOrder>('desc') // unused for now
 
   const sortIdeas = useCallback((list: Idea[], order: SortOrder) => {
     return [...list].sort((a, b) => {
@@ -137,102 +101,64 @@ const BookmarkPage = () => {
     return count
   }
 
-  const handleCardClick = (id: string) => {
-    navigate(`/idea/${id}`)
-  }
+  const handleBookmarkToggle = async (id: string) => {
+    try {
+      const idea = ideas.find(i => i.id === id)
+      if (!idea) return
 
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = date.getHours()
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const ampm = hours >= 12 ? 'PM' : 'AM'
-    const displayHours = hours % 12 || 12
-    return `${year}.${month}.${day} | ${displayHours}:${minutes} ${ampm}`
-  }
+      const { error } = await supabase
+        .from('ideas')
+        .update({ bookmarked: !idea.bookmarked })
+        .eq('id', id)
 
-  const ideaSavedText = `${ideas.length} IDEA SAVED`
+      if (error) throw error
+
+      // Update local state
+      setIdeas(ideas.map(i => 
+        i.id === id ? { ...i, bookmarked: !i.bookmarked } : i
+      ))
+    } catch (error) {
+      console.error('Error toggling bookmark:', error)
+    }
+  }
 
   return (
     <div className="bookmark-page">
       <div className="bookmark-container">
-        <header className="bookmark-header">
+        <div className="bookmark-header">
           <div className="bookmark-title-block">
             <div className="title-row">
               <div className="title-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M6 4h12a2 2 0 0 1 2 2v14l-8-4-8 4V6a2 2 0 0 1 2-2Z" stroke="#1E1E1E" strokeWidth="1.5" strokeLinejoin="round"/>
-                  <path d="M9 9h6" stroke="#1E1E1E" strokeWidth="1.5" strokeLinecap="round"/>
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M14 2L17.09 10.26L26 11.27L19 17.14L20.18 26.02L14 22L7.82 26.02L9 17.14L2 11.27L10.91 10.26L14 2Z" fill="#1e1e1e"/>
                 </svg>
               </div>
-              <h1 className="bookmark-title">Bookmarked Nodes</h1>
+              <h1 className="bookmark-title">Bookmarks</h1>
             </div>
-            <p className="bookmark-subtitle">{ideaSavedText}</p>
+            <p className="bookmark-subtitle">Your saved ideas</p>
           </div>
-        </header>
-
-        <div className="bookmark-grid">
-          {ideas.length === 0 ? (
-            <div className="empty-state">No bookmarked ideas</div>
-          ) : (
-            ideas.map((idea, index) => {
-              const connectedCount = getConnectedIdeasCount(idea)
-              // const contentPreview = getContentPreview(idea.content || undefined) // not shown in design
-              return (
-                <article
-                  key={idea.id}
-                  className="bookmark-card"
-                  onClick={() => handleCardClick(idea.id)}
-                >
-                  <div className="card-top">
-                    <div className="card-number">
-                      <span className="card-number-text">NO. {index + 1}</span>
-                    </div>
-                    <button className="bookmark-icon-btn" aria-label="bookmark">
-                      <div className="bookmark-icon-wrapper">
-                        <svg className="bookmark-base" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M22.1666 24.5L13.9999 19.8333L5.83325 24.5V5.83333C5.83325 5.21449 6.07908 4.621 6.51667 4.18342C6.95425 3.74583 7.54775 3.5 8.16659 3.5H19.8333C20.4521 3.5 21.0456 3.74583 21.4832 4.18342C21.9208 4.621 22.1666 5.21449 22.1666 5.83333V24.5Z" stroke="#1E1E1E" strokeWidth="1.66667" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                    </button>
-                  </div>
-
-                  <div className="card-content">
-                    <h3 className="idea-title">{idea.title}</h3>
-                  </div>
-
-                  <div className="idea-keywords">
-                    {idea.keywords.slice(0, 2).map((keyword, idx) => (
-                      <span
-                        key={idx}
-                        className="keyword-tag-bookmark"
-                        style={{
-                          backgroundColor: KEYWORD_COLORS[keyword] || '#f2f2f2',
-                        }}
-                      >
-                        {keyword}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="idea-card-bottom">
-                    <div className="idea-date">{formatDate(idea.created_at)}</div>
-                    <div className="connected-ideas-count">
-                      <div className="dot-icon">
-                        <span className="dot" />
-                        <span className="dot" />
-                        <span className="dot" />
-                      </div>
-                      <span className="count-text">{connectedCount}</span>
-                    </div>
-                  </div>
-                </article>
-              )
-            })
-          )}
         </div>
+        
+        {ideas.length === 0 ? (
+          <div className="empty-state">
+            <p>No bookmarked ideas yet.</p>
+          </div>
+        ) : (
+          <div className="bookmark-grid">
+            {ideas.map((idea, index) => {
+              const connectedCount = getConnectedIdeasCount(idea)
+              return (
+                <BookmarkCard
+                  key={idea.id}
+                  idea={idea}
+                  ideaNumber={index + 1}
+                  connectedCount={connectedCount}
+                  onBookmarkToggle={handleBookmarkToggle}
+                />
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
+import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
 import variablesData from '../variables.json'
 import BookmarkIcon from '../components/BookmarkIcon'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
@@ -39,17 +40,23 @@ const KEYWORD_COLORS: Record<string, string> = {
   Development: TAG_COLORS.blue || '#0d52ff',
 }
 
-const SIMILARITY_THRESHOLD_SAME = 0.15
-const SIMILARITY_THRESHOLD_CROSS = 0.2
+// 유사도 임계값
+const SIMILARITY_THRESHOLD_SAME = 0.15 // 같은 키워드 내부 연결 임계값 (15%)
+const SIMILARITY_THRESHOLD_CROSS = 0.20 // 다른 키워드 간 연결 임계값 (20%)
 
+// 텍스트 유사도 계산 함수 (0 ~ 1 사이의 값)
 const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
   const text1 = `${idea1.title} ${idea1.content || ''}`.toLowerCase()
   const text2 = `${idea2.title} ${idea2.content || ''}`.toLowerCase()
+  
   const words1 = new Set(text1.match(/[a-z0-9]+/g) || [])
   const words2 = new Set(text2.match(/[a-z0-9]+/g) || [])
-  const commonWords = new Set([...words1].filter((w) => words2.has(w)))
+  
+  const commonWords = new Set([...words1].filter(word => words2.has(word)))
   const union = new Set([...words1, ...words2])
+  
   if (union.size === 0) return 0
+  
   return commonWords.size / union.size
 }
 
@@ -80,6 +87,7 @@ const IdeaDetailPage = () => {
   const [references, setReferences] = useState<string[]>([])
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [connectedIdeas, setConnectedIdeas] = useState<Idea[]>([])
+  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -109,6 +117,15 @@ const IdeaDetailPage = () => {
           setSourceUrls(initialRefs)
           setReferences(initialRefs)
           setIsBookmarked(currentIdea.bookmarked || false)
+
+          // Suggested keywords - 텍스트에서 의미있는 키워드 추출
+          const contentText = `${currentIdea.title || ''} ${currentIdea.content || ''}`
+          const extracted = extractMeaningfulKeywords(contentText, 7)
+          // 이미 선택된 키워드는 제외
+          const suggested = extracted.filter(
+            (keyword: string) => !currentIdea.keywords?.includes(keyword)
+          )
+          setSuggestedKeywords(suggested)
 
           // Fetch all ideas for connection logic
           const { data: allIdeas, error: allError } = await supabase
@@ -176,9 +193,24 @@ const IdeaDetailPage = () => {
       }, 1000)
       return () => clearTimeout(timer)
     }
-  }, [content, keywords, detailedNotes, sourceUrls, isBookmarked])
+  }, [content, keywords, detailedNotes, sourceUrls, isBookmarked, idea, id, user])
 
-  // ... (textarea resize effects)
+  // content나 detailedNotes가 변경될 때 키워드 추천 업데이트
+  useEffect(() => {
+    if (content || detailedNotes) {
+      const fullText = `${content} ${detailedNotes}`.trim()
+      if (fullText) {
+        const extracted = extractMeaningfulKeywords(fullText, 7)
+        // 이미 선택된 키워드는 제외
+        const suggested = extracted.filter(
+          (keyword: string) => !keywords.includes(keyword)
+        )
+        setSuggestedKeywords(suggested)
+      } else {
+        setSuggestedKeywords([])
+      }
+    }
+  }, [content, detailedNotes, keywords])
 
   const handleBookmarkToggle = () => setIsBookmarked(!isBookmarked)
 
@@ -229,10 +261,6 @@ const IdeaDetailPage = () => {
     }
   }
 
-  const suggestedKeywords = AVAILABLE_KEYWORDS.filter(
-    (k) => !keywords.includes(k)
-  )
-
   const formatDate = (dateString?: string): string => {
     if (!dateString) return ''
     const date = new Date(dateString)
@@ -246,7 +274,7 @@ const IdeaDetailPage = () => {
     return `${year}. ${month}. ${day}.  |  ${displayHours}:${minutes} ${ampm}`
   }
 
-  // render
+  // Early return if idea is not loaded
   if (!idea) {
     return (
       <div className="idea-detail-page">
