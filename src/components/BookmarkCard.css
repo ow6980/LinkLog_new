@@ -31,7 +31,7 @@
 }
 
 .idea-number {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 9px;
   line-height: 13.5px;
@@ -42,7 +42,7 @@
 }
 
 .idea-title {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 500;
   font-size: 24px;
   line-height: normal;
@@ -70,7 +70,7 @@
   min-width: 105px;
   height: 22px;
   padding: 0 20px;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 14px;
   line-height: 16px;
@@ -89,7 +89,7 @@
 }
 
 .idea-date {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 9px;
   line-height: 13.5px;
@@ -136,7 +136,7 @@
 }
 
 .count-number {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 9px;
   line-height: 13.5px;

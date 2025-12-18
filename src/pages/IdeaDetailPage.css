@@ -182,7 +182,7 @@
 }
 
 .section-title {
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
@@ -238,7 +238,7 @@
   min-height: auto;
   border: none;
   background: transparent;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 22.75px;
@@ -327,7 +327,7 @@
 }
 
 .keyword-chip-text {
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
@@ -341,7 +341,7 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
@@ -366,7 +366,7 @@
   height: 34px;
   border: none;
   background: transparent;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 22.75px;
@@ -391,7 +391,7 @@
 }
 
 .suggested-keywords-label {
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 24px;
@@ -441,7 +441,7 @@
   background-color: var(--color-gray-200, #cccccc);
   border: none;
   cursor: pointer;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
@@ -473,7 +473,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 4px 0;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 16px;
   line-height: 24px;
@@ -508,7 +508,7 @@
   padding: 20px 24px;
   border: 1px solid var(--text-primary, #1e1e1e);
   background: transparent;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 22.75px;
@@ -570,7 +570,7 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
@@ -628,7 +628,7 @@
   flex: 1;
   border: none;
   background: transparent;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 22.75px;
@@ -661,7 +661,7 @@
 }
 
 .reference-text {
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 22.75px;
@@ -723,7 +723,7 @@
   width: 100%;
   border: none;
   background: transparent;
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 22.75px;
@@ -775,7 +775,7 @@
 }
 
 .connected-idea-text {
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 16px;
   line-height: 24px;
@@ -793,7 +793,7 @@
 }
 
 .no-connected-ideas {
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 16px;
   line-height: 24px;
@@ -805,7 +805,7 @@
   text-align: center;
   padding: 60px 20px;
   color: var(--text-tertiary, #949494);
-  font-family: 'Pretendard', 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
 }
 
 /* Responsive */

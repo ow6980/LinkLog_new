@@ -30,7 +30,7 @@
 }
 
 .login-header-logo {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 600;
   font-size: 32px;
   line-height: 20px;
@@ -51,7 +51,7 @@
 }
 
 .login-nav-link {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
@@ -82,7 +82,7 @@
   border: 1px solid #b3b3b3;
   height: 34px;
   padding: 0 21px;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 16px;
@@ -129,14 +129,14 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 500;
   margin-bottom: 0;
   height: 143px;
 }
 
 .login-title {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 500;
   font-size: 64px;
   line-height: 24px;
@@ -146,7 +146,7 @@
 }
 
 .login-subtitle {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 24px;
   line-height: 24px;
@@ -175,7 +175,7 @@
 }
 
 .login-input-label {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 20px;
   line-height: 24px;
@@ -190,7 +190,7 @@
   background-color: #dddddd;
   border: 2px solid #1e1e1e;
   padding: 20px 24px;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 24px;
   line-height: 24px;
@@ -201,7 +201,7 @@
 
 .login-input::placeholder {
   color: #949494;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 400;
   font-size: 24px;
   line-height: 24px;
@@ -233,7 +233,7 @@
   width: 270px;
   height: 48px;
   border: none;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   font-weight: 600;
   font-size: 20px;
   line-height: 16px;
