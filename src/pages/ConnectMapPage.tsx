@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
 import { suggestSimilarKeywords } from '../utils/keywordSuggester'
 import { generateKeywordsWithGemini, updateKeywordsInDatabase } from '../utils/geminiKeywordGenerator'
-import { createKeywordColorMap, GRAY_COLORS, AVAILABLE_COLORS } from '../utils/keywordColors'
+import { createKeywordColorMap, GRAY_COLORS } from '../utils/keywordColors'
 import './ConnectMapPage.css'
 
 
@@ -1345,7 +1345,6 @@ const ConnectMapPage = () => {
                     // 위쪽 면(top face)의 중심점 계산 (꼭짓점: 2, 3, 7, 6)
                     const topFaceCorners = [2, 3, 7, 6].map(idx => projectedCorners[idx])
                     const topFaceCenterX = topFaceCorners.reduce((sum, c) => sum + c.x, 0) / topFaceCorners.length
-                    const topFaceCenterY = topFaceCorners.reduce((sum, c) => sum + c.y, 0) / topFaceCorners.length
                     // 위쪽 면의 가장 위쪽 점 찾기 (Y가 가장 작은 값)
                     const topMostY = Math.min(...topFaceCorners.map(c => c.y))
                     
@@ -1393,19 +1392,8 @@ const ConnectMapPage = () => {
             .sort((a, b) => a.projected.z - b.projected.z) // 뒤에서 앞으로 정렬
             .map(({ node, projected: nodeProjected, floatOffset }) => {
               const isHovered = hoveredIdea === node.id
-              
-              // 노드 크기에 따른 스타일 결정
               const nodeSize = node.nodeSize || 'small'
-              let nodeFontSize = 20 // Figma 디자인: 기본 20px
               
-              if (nodeSize === 'big') {
-                nodeFontSize = 20
-              } else if (nodeSize === 'mid') {
-                nodeFontSize = 20
-              } else {
-                nodeFontSize = 20
-              }
-
               // 키워드 태그와 동일한 scale 범위 사용 (텍스트 선명도 유지)
               const baseScale = Math.max(1.0, Math.min(1.5, nodeProjected.scale))
               const isSelected = selectedIdea?.id === node.id

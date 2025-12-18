@@ -4,7 +4,7 @@ create table ideas (
   title text not null, -- This is the main idea content
   content text, -- This is the detail memo (nullable)
   keywords text[] default '{}' check (
-    array_length(keywords, 1) <= 2
+    array_length(keywords, 1) <= 1
     -- Postgres doesn't have easy array element check in check constraint without helper function, 
     -- but we will enforce this in application logic.
   ),

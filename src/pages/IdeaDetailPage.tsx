@@ -5,7 +5,7 @@ import { supabase } from '../supabaseClient'
 import { suggestSimilarKeywords } from '../utils/keywordSuggester'
 import BookmarkIcon from '../components/BookmarkIcon'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
-import { getKeywordColor, createKeywordColorMap, GRAY_COLORS } from '../utils/keywordColors'
+import { getKeywordColor, createKeywordColorMap } from '../utils/keywordColors'
 import './IdeaDetailPage.css'
 
 // 유사도 임계값 (ConnectMapPage와 동일)
@@ -133,7 +133,7 @@ const IdeaDetailPage = () => {
             
             // 연결된 아이디어 계산 (ConnectMapPage와 동일한 로직)
             const connected: Idea[] = []
-            allIdeasData.forEach((otherIdea) => {
+            allIdeasData.forEach((otherIdea: Idea) => {
               if (otherIdea.id === currentIdea.id) return
               
               const similarity = calculateSimilarity(currentIdea, otherIdea)
@@ -148,7 +148,7 @@ const IdeaDetailPage = () => {
             // 유사도 기반 키워드 추천
             const contentText = `${currentIdea.title || ''} ${currentIdea.content || ''}`
             const ideasWithKeywords = allIdeasData.filter(
-              idea => idea.keywords && idea.keywords.length > 0 && idea.id !== currentIdea.id
+              (idea: Idea) => idea.keywords && idea.keywords.length > 0 && idea.id !== currentIdea.id
             )
             if (ideasWithKeywords.length > 0 && contentText.trim()) {
               const suggested = suggestSimilarKeywords(contentText, ideasWithKeywords, 7, 0.1)

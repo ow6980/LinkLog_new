@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-// @ts-expect-error - supabase client type is inferred from createClient
 import { supabase } from '../supabaseClient'
 import './InsightPage.css'
 import { subWeeks } from 'date-fns'
@@ -90,7 +89,6 @@ const InsightPage = () => {
 
     const fetchIdeas = async () => {
       try {
-        // @ts-expect-error - supabase client type is inferred
         const { data, error } = await supabase
           .from('ideas')
           .select('*')
@@ -568,46 +566,6 @@ const InsightPage = () => {
     return weeks
   }
 
-  // 키워드 그룹핑
-  const keywordGroups = useMemo(() => {
-    const groups: Record<string, Idea[]> = {}
-    ideas.forEach((idea) => {
-      idea.keywords.forEach((keyword) => {
-        if (!groups[keyword]) {
-          groups[keyword] = []
-        }
-        if (!groups[keyword].find((i) => i.id === idea.id)) {
-          groups[keyword].push(idea)
-        }
-      })
-    })
-
-    return Object.entries(groups)
-      .filter(([_, ideaList]) => ideaList.length > 0)
-      .map(([keyword, ideaList]) => {
-        const keywordCounts: Record<string, number> = {}
-        ideaList.forEach((idea) => {
-          idea.keywords.forEach((k) => {
-            keywordCounts[k] = (keywordCounts[k] || 0) + 1
-          })
-        })
-
-        const topKeywords = Object.entries(keywordCounts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 2)
-          .map(([k]) => k)
-
-        return {
-          keyword,
-          ideas: ideaList,
-          count: ideaList.length,
-          topKeywords,
-          keywordCounts,
-        }
-      })
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3)
-  }, [ideas])
 
   // 차트 그리기
   useEffect(() => {
@@ -1096,7 +1054,6 @@ const InsightPage = () => {
                             k === item.keyword ? newKeyword : k
                           )
                           
-                          // @ts-expect-error - supabase client type is inferred
                           const { error } = await supabase
                             .from('ideas')
                             .update({ keywords: updatedKeywords })

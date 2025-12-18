@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
 
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
