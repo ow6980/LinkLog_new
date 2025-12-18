@@ -10,8 +10,6 @@
 
 .idea-detail-container {
   width: 100%;
-  max-width: 1512px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 64px;
@@ -759,10 +757,6 @@
 
 /* Responsive */
 @media (max-width: 1600px) {
-  .idea-detail-container {
-    max-width: calc(100% - 96px);
-  }
-  
   .detail-title-wrapper {
     max-width: 100%;
   }
