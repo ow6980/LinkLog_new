@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
@@ -85,9 +85,13 @@ const IdeaDetailPage = () => {
   const [detailedNotes, setDetailedNotes] = useState('') // This maps to DB content (detail memo)
   const [sourceUrls, setSourceUrls] = useState<string[]>([])
   const [references, setReferences] = useState<string[]>([])
+  const [newReferenceInput, setNewReferenceInput] = useState('')
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isEditingReferences, setIsEditingReferences] = useState(false)
   const [connectedIdeas, setConnectedIdeas] = useState<Idea[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
+  const ideaContentRef = useRef<HTMLTextAreaElement>(null)
+  const detailedNotesRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -195,6 +199,36 @@ const IdeaDetailPage = () => {
     }
   }, [content, keywords, detailedNotes, sourceUrls, isBookmarked, idea, id, user])
 
+  // 텍스트 영역 높이 자동 조절
+  const adjustTextareaHeight = (textarea: HTMLTextAreaElement | null) => {
+    if (!textarea) return
+    
+    // Reset height to auto to allow scrollHeight to calculate correctly
+    textarea.style.height = 'auto'
+    
+    // Force a reflow by accessing offsetHeight
+    void textarea.offsetHeight
+    
+    // Get scrollHeight which includes padding and content
+    const scrollHeight = textarea.scrollHeight
+    
+    // Set height to scrollHeight to fit all content (minimum 86px)
+    const newHeight = Math.max(86, scrollHeight)
+    textarea.style.height = `${newHeight}px`
+  }
+
+  useEffect(() => {
+    if (ideaContentRef.current) {
+      adjustTextareaHeight(ideaContentRef.current)
+    }
+  }, [content])
+
+  useEffect(() => {
+    if (detailedNotesRef.current) {
+      adjustTextareaHeight(detailedNotesRef.current)
+    }
+  }, [detailedNotes])
+
   // content나 detailedNotes가 변경될 때 키워드 추천 업데이트
   useEffect(() => {
     if (content || detailedNotes) {
@@ -239,9 +273,39 @@ const IdeaDetailPage = () => {
     setKeywords(keywords.filter((k) => k !== value))
   }
 
-  const handleReferenceRemove = (value: string) => {
-    setReferences(references.filter((r) => r !== value))
-    setSourceUrls(sourceUrls.filter((r) => r !== value))
+  const handleReferenceChange = (index: number, value: string) => {
+    const newReferences = [...references]
+    newReferences[index] = value
+    setReferences(newReferences)
+  }
+
+  const handleReferenceRemove = (index: number) => {
+    const newReferences = references.filter((_, i) => i !== index)
+    setReferences(newReferences)
+  }
+
+  const handleReferenceSave = () => {
+    setSourceUrls(references.length > 0 ? [references[0]] : [])
+    setIsEditingReferences(false)
+    setNewReferenceInput('')
+  }
+
+  const handleReferenceAdd = () => {
+    if (newReferenceInput.trim()) {
+      setReferences([...references, newReferenceInput.trim()])
+      setNewReferenceInput('')
+    }
+  }
+
+  const handleReferenceLinkClick = (url: string, e: React.MouseEvent) => {
+    if (!isEditingReferences) {
+      e.preventDefault()
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } else {
+        window.open(`http://${url}`, '_blank', 'noopener,noreferrer')
+      }
+    }
   }
 
   const handleDelete = async () => {
@@ -293,7 +357,7 @@ const IdeaDetailPage = () => {
               <h1>Idea Detail</h1>
             </div>
             <div className="detail-title-actions">
-              <button className="back-button" onClick={() => navigate('/connect-map')}>
+              <button className="back-button" onClick={() => navigate(-1)}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M10 12L6 8L10 4" stroke="#1E1E1E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -318,9 +382,13 @@ const IdeaDetailPage = () => {
               </div>
               <div className="idea-content-input-wrapper">
                 <textarea
+                  ref={ideaContentRef}
                   className="idea-content-input"
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={(e) => {
+                    setContent(e.target.value)
+                    adjustTextareaHeight(e.target)
+                  }}
                   placeholder="Collaborative filtering improves recommendations..."
                 />
               </div>
@@ -398,38 +466,95 @@ const IdeaDetailPage = () => {
             <div className="detail-section detailed-notes-section">
               <h2 className="section-title">Detailed Notes</h2>
               <textarea
+                ref={detailedNotesRef}
                 className="detailed-notes-input"
                 value={detailedNotes}
-                onChange={(e) => setDetailedNotes(e.target.value)}
+                onChange={(e) => {
+                  setDetailedNotes(e.target.value)
+                  adjustTextareaHeight(e.target)
+                }}
                 placeholder="write detailed notes, or realted thoughts about this idea...."
               />
             </div>
 
             {/* References & Links Section */}
             <div className="detail-section references-section">
-              <h2 className="section-title">References & Links</h2>
+              <div className="section-header-with-edit">
+                <h2 className="section-title">References & Links</h2>
+                <button
+                  type="button"
+                  className="reference-edit-btn"
+                  onClick={() => {
+                    if (isEditingReferences) {
+                      handleReferenceSave()
+                    } else {
+                      setIsEditingReferences(true)
+                    }
+                  }}
+                >
+                  {isEditingReferences ? 'save' : 'edit'}
+                </button>
+              </div>
               <div className="references-list">
-                {references.length === 0 ? (
+                {references.length === 0 && !isEditingReferences ? (
                   <div className="reference-item">
                     <span className="reference-text">No references</span>
                   </div>
                 ) : (
-                  references.map((ref, idx) => (
-                    <div key={`${ref}-${idx}`} className="reference-item">
-                      <div className="reference-link">
-                        <span className="reference-text">reference link: {ref}</span>
+                  <>
+                    {references.map((ref, idx) => (
+                      <div key={idx} className="reference-item">
+                        {isEditingReferences ? (
+                          <>
+                            <input
+                              type="text"
+                              className="reference-input-field"
+                              placeholder="reference link: http://example.com"
+                              value={ref}
+                              onChange={(e) => handleReferenceChange(idx, e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="reference-remove-btn"
+                              onClick={() => handleReferenceRemove(idx)}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 4L4 12M4 4L12 12" stroke="#1E1E1E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                          </>
+                        ) : (
+                          <a
+                            href={ref.startsWith('http://') || ref.startsWith('https://') ? ref : `http://${ref}`}
+                            className="reference-link"
+                            onClick={(e) => handleReferenceLinkClick(ref, e)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <span className="reference-text">{ref}</span>
+                          </a>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        className="reference-remove-btn"
-                        onClick={() => handleReferenceRemove(ref)}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 4L4 12M4 4L12 12" stroke="#1E1E1E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </button>
-                    </div>
-                  ))
+                    ))}
+                    {isEditingReferences && (
+                      <div className="reference-item">
+                        <input
+                          type="text"
+                          className="reference-input-field"
+                          placeholder="reference link: http://example.com"
+                          value={newReferenceInput}
+                          onChange={(e) => setNewReferenceInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newReferenceInput.trim()) {
+                              e.preventDefault()
+                              handleReferenceAdd()
+                            }
+                          }}
+                          onBlur={handleReferenceAdd}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
