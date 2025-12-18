@@ -2,73 +2,10 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
-import variablesData from '../variables.json'
 import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
 import { generateKeywordsWithGemini, updateKeywordsInDatabase } from '../utils/geminiKeywordGenerator'
+import { createKeywordColorMap, GRAY_COLORS, AVAILABLE_COLORS } from '../utils/keywordColors'
 import './ConnectMapPage.css'
-
-// variables.json에서 색상 추출 (RGB를 HEX로 변환)
-const rgbToHex = (r: number, g: number, b: number): string => {
-  const toHex = (n: number) => {
-    const hex = Math.round(n * 255).toString(16)
-    return hex.length === 1 ? '0' + hex : hex
-  }
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
-
-const extractTagColors = () => {
-  const tagColors: Record<string, string> = {}
-  variablesData.variables.forEach((variable: any) => {
-    if (variable.name.startsWith('color/tag/')) {
-      const colorName = variable.name.replace('color/tag/', '')
-      const rgb = variable.resolvedValuesByMode['12:0'].resolvedValue
-      tagColors[colorName] = rgbToHex(rgb.r, rgb.g, rgb.b)
-    }
-  })
-  return tagColors
-}
-
-const TAG_COLORS = extractTagColors()
-
-// 사용 가능한 색상 목록 (키워드가 많을 경우 순환 사용)
-const AVAILABLE_COLORS = [
-  TAG_COLORS.red || '#ff4848',
-  TAG_COLORS.orange || '#ffae2b',
-  TAG_COLORS.yellow || '#ffff06',
-  TAG_COLORS.skyblue || '#0de7ff',
-  TAG_COLORS.violet || '#8a38f5',
-  TAG_COLORS.green || '#77ff00',
-  TAG_COLORS.blue || '#0d52ff',
-]
-
-// 키워드에 색상 할당 (최대 7개, 각 키워드는 다른 색상) - 현재 사용 안 함 (Gemini로 추후 키워드 생성 예정)
-// const getKeywordColor = (keywordIndex: number, isInitial: boolean = false): string => {
-//   // 초기 상태(그룹핑 전)는 그레이 색상
-//   if (isInitial) {
-//     return GRAY_COLORS['500'] || '#666666'
-//   }
-//   // 그룹핑 후에는 7가지 색상 중에서 할당 (최대 7개)
-//   if (keywordIndex >= 0 && keywordIndex < AVAILABLE_COLORS.length) {
-//     return AVAILABLE_COLORS[keywordIndex]
-//   }
-//   // 7개를 초과하면 그레이 색상
-//   return GRAY_COLORS['500'] || '#666666'
-// }
-
-// Gray 색상 추출
-const extractGrayColors = () => {
-  const grayColors: Record<string, string> = {}
-  variablesData.variables.forEach((variable: any) => {
-    if (variable.name.startsWith('color/gray/')) {
-      const grayLevel = variable.name.replace('color/gray/', '')
-      const rgb = variable.resolvedValuesByMode['12:0'].resolvedValue
-      grayColors[grayLevel] = rgbToHex(rgb.r, rgb.g, rgb.b)
-    }
-  })
-  return grayColors
-}
-
-const GRAY_COLORS = extractGrayColors()
 
 
 interface Idea {
@@ -384,15 +321,9 @@ const ConnectMapPage = () => {
       .filter(([keyword]) => keyword !== 'ungrouped')
       .map(([keyword, ideas]) => ({ keyword, ideas }))
     
-    // 키워드별 색상 할당
-    const newKeywordColorMap = new Map<string, string>()
-    let colorIndex = 0
-    keywordGroupsList.forEach(({ keyword }) => {
-      if (!newKeywordColorMap.has(keyword)) {
-        newKeywordColorMap.set(keyword, AVAILABLE_COLORS[colorIndex % AVAILABLE_COLORS.length])
-        colorIndex++
-      }
-    })
+    // 키워드별 색상 할당 (일관된 색상 할당을 위해 공통 함수 사용)
+    const allKeywords = keywordGroupsList.map(({ keyword }) => keyword)
+    const newKeywordColorMap = createKeywordColorMap(allKeywords)
     setKeywordColorMap(newKeywordColorMap)
     
     // KeywordGroup 타입에 맞게 변환
@@ -1683,15 +1614,22 @@ const ConnectMapPage = () => {
             <div className="node-detail-section">
               <h3 className="node-detail-section-title">keywords</h3>
               <div className="node-detail-keywords">
-                {selectedIdea.keywords.map((keyword, idx) => (
+                {selectedIdea.keywords.map((keyword, idx) => {
+                  // 키워드 색상 가져오기
+                  const keywordColor = keywordColorMap.has(keyword)
+                    ? keywordColorMap.get(keyword)!
+                    : GRAY_COLORS['500'] || '#666666'
+                  
+                  return (
                   <div 
                     key={idx} 
                     className="node-detail-keyword-tag"
-                    style={{ backgroundColor: GRAY_COLORS['500'] || '#666666' }}
+                      style={{ backgroundColor: keywordColor }}
                   >
                     {keyword}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -1739,8 +1677,12 @@ const ConnectMapPage = () => {
                   <h3 className="node-detail-section-title">connected idea</h3>
                   <div className="node-detail-connected-ideas">
                     {connectedIdeas.map((idea) => {
-                      // 키워드 그룹 없으므로 기본 색상 사용
-                      const dotColor = GRAY_COLORS['500'] || '#666666'
+                      // 연결된 아이디어의 키워드 색상 가져오기
+                      const ideaKeyword = idea.keyword || (idea.keywords && idea.keywords.length > 0 ? idea.keywords[0] : '')
+                      const dotColor = ideaKeyword && keywordColorMap.has(ideaKeyword)
+                        ? keywordColorMap.get(ideaKeyword)!
+                        : GRAY_COLORS['500'] || '#666666'
+                      
                       return (
                         <div key={idea.id} className="node-detail-connected-idea-item">
                           <div 

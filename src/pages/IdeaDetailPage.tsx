@@ -3,64 +3,47 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
 import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
-import variablesData from '../variables.json'
 import BookmarkIcon from '../components/BookmarkIcon'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
+import { getKeywordColor, createKeywordColorMap, GRAY_COLORS } from '../utils/keywordColors'
 import './IdeaDetailPage.css'
 
-// color helpers (reuse minimal subset)
-const rgbToHex = (r: number, g: number, b: number): string => {
-  const toHex = (n: number) => {
-    const hex = Math.round(n * 255).toString(16)
-    return hex.length === 1 ? '0' + hex : hex
-  }
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
+// 유사도 임계값 (ConnectMapPage와 동일)
+const SIMILARITY_THRESHOLD = 0.15 // 연결 임계값 (15%)
 
-const extractTagColors = () => {
-  const tagColors: Record<string, string> = {}
-  variablesData.variables.forEach((variable: any) => {
-    if (variable.name.startsWith('color/tag/')) {
-      const colorName = variable.name.replace('color/tag/', '')
-      const rgb = variable.resolvedValuesByMode['12:0'].resolvedValue
-      tagColors[colorName] = rgbToHex(rgb.r, rgb.g, rgb.b)
-    }
-  })
-  return tagColors
-}
-
-const TAG_COLORS = extractTagColors()
-const KEYWORD_COLORS: Record<string, string> = {
-  Technology: TAG_COLORS.red || '#ff4848',
-  Innovation: TAG_COLORS.orange || '#ffae2b',
-  Data: TAG_COLORS.yellow || '#ffff06',
-  Design: TAG_COLORS.skyblue || '#0de7ff',
-  Business: TAG_COLORS.violet || '#8a38f5',
-  Research: TAG_COLORS.green || '#77ff00',
-  Development: TAG_COLORS.blue || '#0d52ff',
-}
-
-// 유사도 임계값
-const SIMILARITY_THRESHOLD_SAME = 0.15 // 같은 키워드 내부 연결 임계값 (15%)
-const SIMILARITY_THRESHOLD_CROSS = 0.20 // 다른 키워드 간 연결 임계값 (20%)
-
-// 텍스트 유사도 계산 함수 (0 ~ 1 사이의 값)
+// 텍스트 유사도 계산 함수 (ConnectMapPage와 동일한 로직)
 const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
-  const text1 = `${idea1.title} ${idea1.content || ''}`.toLowerCase()
-  const text2 = `${idea2.title} ${idea2.content || ''}`.toLowerCase()
+  // 제목과 내용을 합쳐서 텍스트 준비
+  const text1 = `${idea1.title} ${idea1.content || ''}`
+  const text2 = `${idea2.title} ${idea2.content || ''}`
   
-  const words1 = new Set(text1.match(/[a-z0-9]+/g) || [])
-  const words2 = new Set(text2.match(/[a-z0-9]+/g) || [])
+  // 한국어와 영어 모두 처리
+  // 1. 한국어 단어 추출 (한글, 숫자, 영문 포함)
+  const koreanWordRegex = /[\uAC00-\uD7A3]+|[a-zA-Z0-9]+/g
   
+  const words1 = new Set((text1.match(koreanWordRegex) || []).map(w => w.toLowerCase()))
+  const words2 = new Set((text2.match(koreanWordRegex) || []).map(w => w.toLowerCase()))
+  
+  // 2. 공통 단어 계산
   const commonWords = new Set([...words1].filter(word => words2.has(word)))
+  
+  // 3. Jaccard 유사도: 교집합 / 합집합
   const union = new Set([...words1, ...words2])
   
-  if (union.size === 0) return 0
+  if (union.size === 0) {
+    // 단어가 없으면 문자 단위로 비교 (한국어 처리)
+    const chars1 = new Set(text1.replace(/\s/g, '').split(''))
+    const chars2 = new Set(text2.replace(/\s/g, '').split(''))
+    const commonChars = new Set([...chars1].filter(char => chars2.has(char)))
+    const unionChars = new Set([...chars1, ...chars2])
+    
+    if (unionChars.size === 0) return 0
+    return commonChars.size / unionChars.size
+  }
   
   return commonWords.size / union.size
 }
 
-const getKeywordColor = (keyword: string) => KEYWORD_COLORS[keyword] || '#666666'
 
 interface Idea {
   id: string
@@ -90,6 +73,7 @@ const IdeaDetailPage = () => {
   const [isEditingReferences, setIsEditingReferences] = useState(false)
   const [connectedIdeas, setConnectedIdeas] = useState<Idea[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
+  const [keywordColorMap, setKeywordColorMap] = useState<Map<string, string>>(new Map())
   const ideaContentRef = useRef<HTMLTextAreaElement>(null)
   const detailedNotesRef = useRef<HTMLTextAreaElement>(null)
 
@@ -139,22 +123,34 @@ const IdeaDetailPage = () => {
           if (allError) throw allError
 
           if (allIdeas) {
-             const connected: Idea[] = []
-             allIdeas.forEach((otherIdea) => {
-               if (otherIdea.id === currentIdea.id) return
-               
-               const similarity = calculateSimilarity(currentIdea, otherIdea)
-               const hasCommonKeyword = currentIdea.keywords?.some((kw: string) => 
-                 otherIdea.keywords?.includes(kw)
-               )
-               
-               if (hasCommonKeyword && similarity >= SIMILARITY_THRESHOLD_SAME) {
-                 connected.push(otherIdea)
-               } else if (!hasCommonKeyword && similarity >= SIMILARITY_THRESHOLD_CROSS) {
-                 connected.push(otherIdea)
-               }
-             })
-             setConnectedIdeas(connected)
+            // 키워드 색상 맵 생성 (일관된 색상 할당을 위해 공통 함수 사용)
+            const allKeywords: string[] = []
+            allIdeas.forEach(idea => {
+              if (idea.keywords && idea.keywords.length > 0) {
+                idea.keywords.forEach(keyword => {
+                  if (keyword && keyword !== 'ungrouped' && !allKeywords.includes(keyword)) {
+                    allKeywords.push(keyword)
+                  }
+                })
+              }
+            })
+            
+            const newKeywordColorMap = createKeywordColorMap(allKeywords)
+            setKeywordColorMap(newKeywordColorMap)
+            
+            // 연결된 아이디어 계산 (ConnectMapPage와 동일한 로직)
+            const connected: Idea[] = []
+            allIdeas.forEach((otherIdea) => {
+              if (otherIdea.id === currentIdea.id) return
+              
+              const similarity = calculateSimilarity(currentIdea, otherIdea)
+              // 유사도가 임계값 이상이면 연결 (키워드 무시, 유사도만으로 연결)
+              if (similarity >= SIMILARITY_THRESHOLD) {
+                connected.push(otherIdea)
+              }
+            })
+            console.log('Connected ideas:', connected.length, connected)
+            setConnectedIdeas(connected)
           }
         }
       } catch (error) {
@@ -398,22 +394,29 @@ const IdeaDetailPage = () => {
             <div className="detail-section keywords-section">
               <h2 className="section-title">Keywords</h2>
               <div className="keywords-input-container">
-                {keywords.map((kw) => (
-                  <div
-                    key={kw}
-                    className="keyword-chip"
-                    style={{ backgroundColor: KEYWORD_COLORS[kw] || '#ff4848' }}
-                  >
-                    <span className="keyword-chip-text">{kw}</span>
-                    <button
-                      type="button"
-                      className="keyword-chip-remove"
-                      onClick={() => handleKeywordRemove(kw)}
+                {keywords.map((kw) => {
+                  // 키워드 색상 가져오기 (keywordColorMap 사용)
+                  // keywordColorMap이 있으면 사용, 없으면 공통 함수 사용
+                  const keywordColor = keywordColorMap && keywordColorMap.has(kw)
+                    ? keywordColorMap.get(kw)!
+                    : getKeywordColor(kw)
+                  return (
+                    <div
+                      key={kw}
+                      className="keyword-chip"
+                      style={{ backgroundColor: keywordColor }}
                     >
-                      x
-                    </button>
-                  </div>
-                ))}
+                      <span className="keyword-chip-text">{kw}</span>
+                      <button
+                        type="button"
+                        className="keyword-chip-remove"
+                        onClick={() => handleKeywordRemove(kw)}
+                      >
+                        x
+                      </button>
+                    </div>
+                  )
+                })}
                 <input
                   className="keyword-input"
                   value={keywordInput}
@@ -561,12 +564,15 @@ const IdeaDetailPage = () => {
 
             {/* Connected Idea Section */}
             <div className="detail-section connected-ideas-section">
-              <h2 className="section-title">Connected Idea</h2>
+              <h2 className="section-title">connected idea</h2>
               <div className="connected-ideas-list">
                 {connectedIdeas.length > 0 ? (
                   connectedIdeas.map((connectedIdea) => {
                     const firstKeyword = connectedIdea.keywords?.[0] || ''
-                    const color = getKeywordColor(firstKeyword)
+                    // keywordColorMap이 있으면 사용, 없으면 공통 함수 사용
+                    const color = keywordColorMap && keywordColorMap.has(firstKeyword)
+                      ? keywordColorMap.get(firstKeyword)!
+                      : getKeywordColor(firstKeyword)
                     return (
                       <div
                         key={connectedIdea.id}
