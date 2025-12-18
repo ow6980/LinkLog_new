@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
-import variablesData from '../variables.json'
+import BookmarkCard from '../components/BookmarkCard'
+import BookmarkIcon from '../components/BookmarkIcon'
 import './BookmarkPage.css'
 
 // ... (RGB to HEX, extractTagColors, extractGrayColors functions remain same)
@@ -42,8 +43,6 @@ const BookmarkPage = () => {
   const { isAuthenticated } = useAuth()
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [allIdeas, setAllIdeas] = useState<Idea[]>([]) // Store all ideas for connection calculation
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [sortOrder] = useState<SortOrder>('desc')
 
   const sortIdeas = useCallback((list: Idea[], order: SortOrder) => {
     return [...list].sort((a, b) => {
@@ -107,62 +106,25 @@ const BookmarkPage = () => {
     return count
   }
 
-  const handleCardClick = (id: string) => {
-    navigate(`/idea/${id}`)
-  }
-
-  const handleBookmarkToggle = async (e: React.MouseEvent, idea: Idea) => {
-    e.stopPropagation() // 카드 클릭 이벤트 방지
-    
+  const handleBookmarkToggle = async (ideaId: string) => {
     try {
+      const idea = ideas.find(i => i.id === ideaId)
+      if (!idea) return
       const newBookmarkedState = !idea.bookmarked
-      
-      // Optimistic update
-      const updatedIdeas = ideas.filter(i => i.id !== idea.id) // Remove from list if unbookmarked (or re-fetch?)
-      // Actually, if we toggle in bookmark page, it usually means removing it.
-      // But let's just toggle state locally first.
-      // If unbookmarked, it should disappear from the list.
-      
-      if (!newBookmarkedState) {
-         setIdeas(updatedIdeas)
-      }
+
+      // Optimistic remove when unbookmarking
+      if (!newBookmarkedState) setIdeas(prev => prev.filter(i => i.id !== ideaId))
 
       const { error } = await supabase
         .from('ideas')
         .update({ bookmarked: newBookmarkedState })
-        .eq('id', idea.id)
+        .eq('id', ideaId)
 
       if (error) throw error
-      
     } catch (error) {
       console.error('Error toggling bookmark:', error)
       // Revert if error (fetching again might be easier)
     }
-  }
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = date.getHours()
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const ampm = hours >= 12 ? 'PM' : 'AM'
-    const displayHours = hours % 12 || 12
-    return `${year}.${month}.${day} | ${displayHours}:${minutes} ${ampm}`
-  }
-
-  const getContentPreview = (content?: string): string => {
-    // In bookmark card, we might want to show title or part of content
-    // Based on previous design, it showed 'content' which is now 'detailedNotes' (DB content)
-    // But 'title' is the main idea. Let's show detailed notes if available, else nothing or title?
-    // User asked: "title is content, content is detailed memo". 
-    // Usually card shows the main idea (Title). The snippet might be from detailed memo.
-    
-    if (!content) return ''
-    const trimmed = content.trim()
-    if (trimmed.length <= 140) return trimmed
-    return `${trimmed.slice(0, 140)}...`
   }
 
   return (
@@ -172,13 +134,11 @@ const BookmarkPage = () => {
           <div className="bookmark-title-block">
             <div className="title-row">
               <div className="title-icon">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M14 2L17.09 10.26L26 11.27L19 17.14L20.18 26.02L14 22L7.82 26.02L9 17.14L2 11.27L10.91 10.26L14 2Z" fill="#1e1e1e"/>
-                </svg>
+                <BookmarkIcon marked />
               </div>
               <h1 className="bookmark-title">Bookmarks</h1>
             </div>
-            <p className="bookmark-subtitle">Your saved ideas</p>
+            <p className="bookmark-subtitle">{ideas.length} ideas saved</p>
           </div>
         </div>
         
@@ -188,62 +148,15 @@ const BookmarkPage = () => {
           </div>
         ) : (
           <div className="bookmark-grid">
-            {ideas.map((idea, index) => {
-              const connectedCount = getConnectedIdeasCount(idea)
-              // Use content (detailed notes) for preview if available
-              const contentPreview = getContentPreview(idea.content || undefined) 
-              return (
-                <article 
-                  key={idea.id} 
-                  className="bookmark-card"
-                  onClick={() => handleCardClick(idea.id)}
-                >
-                  <div className="card-top">
-                    <div className="card-number">
-                      <span className="card-number-text">NO. {index + 1}</span>
-                    </div>
-                    <div 
-                      className="bookmark-icon-btn"
-                      onClick={(e) => handleBookmarkToggle(e, idea)}
-                    >
-                      {/* Bookmark icon will be added here if needed */}
-                    </div>
-                  </div>
-                  
-                  <div className="card-content">
-                    <h3 className="idea-title">{idea.title}</h3>
-                  </div>
-
-                  {contentPreview && (
-                    <div className="idea-snippet-wrapper">
-                      <p className="idea-snippet">{contentPreview}</p>
-                    </div>
-                  )}
-
-                  {idea.keywords && idea.keywords.length > 0 && (
-                    <div className="idea-keywords">
-                      {idea.keywords.slice(0, 2).map((keyword, idx) => (
-                        <span key={idx} className="keyword-tag-bookmark">
-                          {keyword}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  
-                  <div className="idea-card-bottom">
-                    <div className="idea-date">{formatDate(idea.created_at)}</div>
-                    <div className="connected-ideas-count">
-                      <div className="dot-icon">
-                        <span className="dot"></span>
-                        <span className="dot"></span>
-                        <span className="dot"></span>
-                      </div>
-                      <span className="count-text">{connectedCount}</span>
-                    </div>
-                  </div>
-                </article>
-              )
-            })}
+            {ideas.map((idea, index) => (
+              <BookmarkCard
+                key={idea.id}
+                idea={idea}
+                ideaNumber={index + 1}
+                connectedCount={getConnectedIdeasCount(idea)}
+                onBookmarkToggle={handleBookmarkToggle}
+              />
+            ))}
           </div>
         )}
       </div>

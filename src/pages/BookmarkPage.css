@@ -70,24 +70,11 @@
 
 .bookmark-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
   align-items: flex-start;
   width: 100%;
-}
-
-.bookmark-card {
-  width: 100%;
-  min-width: 350px;
-  background: var(--bg-primary, #dddddd);
-  border: 1px solid var(--text-primary, #1e1e1e);
-  padding: 15px 15px 20px 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-sizing: border-box;
-  cursor: pointer;
-  position: relative;
+  justify-items: stretch;
 }
 
 .card-top {

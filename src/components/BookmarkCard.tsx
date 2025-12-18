@@ -84,7 +84,12 @@ const BookmarkCard = ({
 
   return (
     <div className="bookmark-card" onClick={handleCardClick}>
-      <div className="idea-number">NO. {ideaNumber}</div>
+      <div className="card-top">
+        <div className="idea-number">NO. {ideaNumber}</div>
+        <div className="bookmark-icon-wrapper" onClick={handleBookmarkClick}>
+          <BookmarkIcon marked={idea.bookmarked || false} />
+        </div>
+      </div>
       <div className="idea-title">{idea.title}</div>
       <div className="keywords-container">
         {idea.keywords.slice(0, 2).map((keyword, index) => (
@@ -111,13 +116,6 @@ const BookmarkCard = ({
           <span className="count-number">{connectedCount}</span>
         </div>
       </div>
-      <div className="bookmark-icon-wrapper" onClick={handleBookmarkClick}>
-        <BookmarkIcon marked={idea.bookmarked || false} />
-      </div>
-      <div className="corner-decoration top-left"></div>
-      <div className="corner-decoration top-right"></div>
-      <div className="corner-decoration bottom-left"></div>
-      <div className="corner-decoration bottom-right"></div>
     </div>
   )
 }
