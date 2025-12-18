@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
-import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
+import { suggestSimilarKeywords } from '../utils/keywordSuggester'
 import BookmarkIcon from '../components/BookmarkIcon'
 import { AVAILABLE_KEYWORDS } from '../mockData/keywords'
 import { getKeywordColor, createKeywordColorMap, GRAY_COLORS } from '../utils/keywordColors'
@@ -74,6 +74,7 @@ const IdeaDetailPage = () => {
   const [connectedIdeas, setConnectedIdeas] = useState<Idea[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
   const [keywordColorMap, setKeywordColorMap] = useState<Map<string, string>>(new Map())
+  const [allIdeas, setAllIdeas] = useState<Idea[]>([])
   const ideaContentRef = useRef<HTMLTextAreaElement>(null)
   const detailedNotesRef = useRef<HTMLTextAreaElement>(null)
 
@@ -106,23 +107,15 @@ const IdeaDetailPage = () => {
           setReferences(initialRefs)
           setIsBookmarked(currentIdea.bookmarked || false)
 
-          // Suggested keywords - 텍스트에서 의미있는 키워드 추출
-          const contentText = `${currentIdea.title || ''} ${currentIdea.content || ''}`
-          const extracted = extractMeaningfulKeywords(contentText, 7)
-          // 이미 선택된 키워드는 제외
-          const suggested = extracted.filter(
-            (keyword: string) => !currentIdea.keywords?.includes(keyword)
-          )
-          setSuggestedKeywords(suggested)
-
-          // Fetch all ideas for connection logic
-          const { data: allIdeas, error: allError } = await supabase
+          // Fetch all ideas for connection logic and keyword suggestion
+          const { data: allIdeasData, error: allError } = await supabase
             .from('ideas')
             .select('*')
           
           if (allError) throw allError
 
-          if (allIdeas) {
+          if (allIdeasData) {
+            setAllIdeas(allIdeasData)
             // 키워드 색상 맵 생성 (일관된 색상 할당을 위해 공통 함수 사용)
             const allKeywords: string[] = []
             allIdeas.forEach(idea => {
@@ -140,7 +133,7 @@ const IdeaDetailPage = () => {
             
             // 연결된 아이디어 계산 (ConnectMapPage와 동일한 로직)
             const connected: Idea[] = []
-            allIdeas.forEach((otherIdea) => {
+            allIdeasData.forEach((otherIdea) => {
               if (otherIdea.id === currentIdea.id) return
               
               const similarity = calculateSimilarity(currentIdea, otherIdea)
@@ -151,6 +144,21 @@ const IdeaDetailPage = () => {
             })
             console.log('Connected ideas:', connected.length, connected)
             setConnectedIdeas(connected)
+
+            // 유사도 기반 키워드 추천
+            const contentText = `${currentIdea.title || ''} ${currentIdea.content || ''}`
+            const ideasWithKeywords = allIdeasData.filter(
+              idea => idea.keywords && idea.keywords.length > 0 && idea.id !== currentIdea.id
+            )
+            if (ideasWithKeywords.length > 0 && contentText.trim()) {
+              const suggested = suggestSimilarKeywords(contentText, ideasWithKeywords, 7, 0.1)
+              const filtered = suggested.filter(
+                (keyword: string) => !currentIdea.keywords?.includes(keyword)
+              )
+              setSuggestedKeywords(filtered)
+            } else {
+              setSuggestedKeywords([])
+            }
           }
         }
       } catch (error) {
@@ -196,7 +204,7 @@ const IdeaDetailPage = () => {
   }, [content, keywords, detailedNotes, sourceUrls, isBookmarked, idea, id, user])
 
   // 텍스트 영역 높이 자동 조절
-  const adjustTextareaHeight = (textarea: HTMLTextAreaElement | null) => {
+  const adjustTextareaHeight = (textarea: HTMLTextAreaElement | null, minHeight: number = 86) => {
     if (!textarea) return
     
     // Reset height to auto to allow scrollHeight to calculate correctly
@@ -208,8 +216,8 @@ const IdeaDetailPage = () => {
     // Get scrollHeight which includes padding and content
     const scrollHeight = textarea.scrollHeight
     
-    // Set height to scrollHeight to fit all content (minimum 86px)
-    const newHeight = Math.max(86, scrollHeight)
+    // Set height to scrollHeight to fit all content (minimum height)
+    const newHeight = Math.max(minHeight, scrollHeight)
     textarea.style.height = `${newHeight}px`
   }
 
@@ -221,26 +229,36 @@ const IdeaDetailPage = () => {
 
   useEffect(() => {
     if (detailedNotesRef.current) {
-      adjustTextareaHeight(detailedNotesRef.current)
+      adjustTextareaHeight(detailedNotesRef.current, 128)
     }
   }, [detailedNotes])
 
-  // content나 detailedNotes가 변경될 때 키워드 추천 업데이트
+  // content나 detailedNotes가 변경될 때 유사도 기반 키워드 추천 업데이트
   useEffect(() => {
     if (content || detailedNotes) {
       const fullText = `${content} ${detailedNotes}`.trim()
-      if (fullText) {
-        const extracted = extractMeaningfulKeywords(fullText, 7)
-        // 이미 선택된 키워드는 제외
-        const suggested = extracted.filter(
-          (keyword: string) => !keywords.includes(keyword)
+      if (fullText && allIdeas.length > 0) {
+        // 기존 키워드가 있는 아이디어들만 필터링 (현재 아이디어 제외)
+        const ideasWithKeywords = allIdeas.filter(
+          idea => idea.keywords && idea.keywords.length > 0 && idea.id !== idea?.id
         )
-        setSuggestedKeywords(suggested)
+
+        if (ideasWithKeywords.length > 0) {
+          // 유사도 기반 키워드 추천
+          const suggested = suggestSimilarKeywords(fullText, ideasWithKeywords, 7, 0.1)
+          // 이미 선택된 키워드는 제외
+          const filtered = suggested.filter(
+            (keyword: string) => !keywords.includes(keyword)
+          )
+          setSuggestedKeywords(filtered)
+        } else {
+          setSuggestedKeywords([])
+        }
       } else {
         setSuggestedKeywords([])
       }
     }
-  }, [content, detailedNotes, keywords])
+  }, [content, detailedNotes, keywords, allIdeas, idea])
 
   const handleBookmarkToggle = () => setIsBookmarked(!isBookmarked)
 
@@ -257,8 +275,8 @@ const IdeaDetailPage = () => {
       setKeywordInput('')
       return
     }
-    if (keywords.length >= 2) {
-      alert('최대 2개의 키워드만 추가할 수 있습니다.')
+    if (keywords.length >= 1) {
+      alert('최대 1개의 키워드만 추가할 수 있습니다.')
       return
     }
     setKeywords([...keywords, next])
@@ -430,21 +448,23 @@ const IdeaDetailPage = () => {
                   placeholder="Type and press Enter to add keywords"
                 />
               </div>
-              <div className="suggested-keywords-section">
-                <p className="suggested-keywords-label">Suggested Keywords</p>
-                <div className="suggested-keywords-list">
-                  {suggestedKeywords.map((kw) => (
-                    <button
-                      key={kw}
-                      type="button"
-                      className="suggested-keyword-chip"
-                      onClick={() => handleKeywordAdd(kw)}
-                    >
-                      {kw}
-                    </button>
-                  ))}
+              {suggestedKeywords.length > 0 && (
+                <div className="suggested-keywords-section">
+                  <p className="suggested-keywords-label">Suggested Keywords</p>
+                  <div className="suggested-keywords-list">
+                    {suggestedKeywords.map((kw) => (
+                      <button
+                        key={kw}
+                        type="button"
+                        className="suggested-keyword-chip"
+                        onClick={() => handleKeywordAdd(kw)}
+                      >
+                        {kw}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Meta Data Section */}
@@ -474,7 +494,7 @@ const IdeaDetailPage = () => {
                 value={detailedNotes}
                 onChange={(e) => {
                   setDetailedNotes(e.target.value)
-                  adjustTextareaHeight(e.target)
+                  adjustTextareaHeight(e.target, 128)
                 }}
                 placeholder="write detailed notes, or realted thoughts about this idea...."
               />

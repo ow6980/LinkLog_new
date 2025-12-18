@@ -504,7 +504,7 @@
 .detailed-notes-input {
   width: 100%;
   flex: 1;
-  min-height: 86px;
+  min-height: 128px;
   padding: 20px 24px;
   border: 1px solid var(--text-primary, #1e1e1e);
   background: transparent;

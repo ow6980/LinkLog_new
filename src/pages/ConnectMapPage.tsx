@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
-import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
+import { suggestSimilarKeywords } from '../utils/keywordSuggester'
 import { generateKeywordsWithGemini, updateKeywordsInDatabase } from '../utils/geminiKeywordGenerator'
 import { createKeywordColorMap, GRAY_COLORS, AVAILABLE_COLORS } from '../utils/keywordColors'
 import './ConnectMapPage.css'
@@ -108,26 +108,28 @@ const ConnectMapPage = () => {
   const displaySuggestedKeywords =
     suggestedKeywords.length > 0 ? suggestedKeywords : DEFAULT_SUGGESTED
 
-  // 키워드 추출 함수 - 텍스트에서 의미있는 키워드 자동 추출
-  const extractKeywords = useCallback((text: string): string[] => {
-    if (!text.trim()) return []
-
-    // 새로운 키워드 추출 함수 사용 (최대 7개)
-    const extracted = extractMeaningfulKeywords(text, 7)
-    
-    // 이미 선택된 키워드는 제외
-    return extracted.filter(k => !selectedKeywords.includes(k))
-  }, [selectedKeywords])
-
-  // 키워드 추출 useEffect
+  // 유사도 기반 키워드 추천
   useEffect(() => {
     if (ideaInput && isAddIdeaModalOpen) {
-      const extracted = extractKeywords(ideaInput)
-      setSuggestedKeywords(extracted)
+      // 기존 키워드가 있는 아이디어들만 필터링
+      const ideasWithKeywords = ideas.filter(
+        idea => idea.keywords && idea.keywords.length > 0
+      )
+
+      if (ideasWithKeywords.length > 0) {
+        // 유사도 기반 키워드 추천
+        const suggested = suggestSimilarKeywords(ideaInput, ideasWithKeywords, 7, 0.1)
+        // 이미 선택된 키워드는 제외
+        const filtered = suggested.filter(k => !selectedKeywords.includes(k))
+        setSuggestedKeywords(filtered)
+      } else {
+        // 키워드가 있는 아이디어가 없으면 빈 배열
+        setSuggestedKeywords([])
+      }
     } else {
       setSuggestedKeywords([])
     }
-  }, [ideaInput, selectedKeywords, extractKeywords, isAddIdeaModalOpen])
+  }, [ideaInput, selectedKeywords, ideas, isAddIdeaModalOpen])
 
   // textarea 높이 자동 조절
   useEffect(() => {
@@ -138,7 +140,7 @@ const ConnectMapPage = () => {
   }, [ideaInput])
 
   const handleKeywordSelect = (keyword: string) => {
-    if (!selectedKeywords.includes(keyword) && selectedKeywords.length < 2) {
+    if (!selectedKeywords.includes(keyword) && selectedKeywords.length < 1) {
       setSelectedKeywords([...selectedKeywords, keyword])
       setSuggestedKeywords(suggestedKeywords.filter((k: string) => k !== keyword))
     }

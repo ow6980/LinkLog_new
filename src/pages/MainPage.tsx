@@ -3,7 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
 import './MainPage.css'
-import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
+import { suggestSimilarKeywords } from '../utils/keywordSuggester'
+
+interface Idea {
+  id: string
+  title: string
+  content: string | null
+  keywords: string[]
+  created_at?: string
+}
 
 const MainPage = () => {
   const navigate = useNavigate()
@@ -11,27 +19,56 @@ const MainPage = () => {
   const [ideaInput, setIdeaInput] = useState('')
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([])
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([])
+  const [existingIdeas, setExistingIdeas] = useState<Idea[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // 텍스트에서 의미있는 키워드 자동 추출
-  const extractKeywords = (text: string): string[] => {
-    if (!text.trim()) return []
-
-    // 새로운 키워드 추출 함수 사용 (최대 7개)
-    const extracted = extractMeaningfulKeywords(text, 7)
-    
-    // 이미 선택된 키워드는 제외
-    return extracted.filter(k => !selectedKeywords.includes(k))
-  }
-
+  // 기존 아이디어 로드
   useEffect(() => {
-    if (ideaInput) {
-      const extracted = extractKeywords(ideaInput)
-      setSuggestedKeywords(extracted)
+    if (!isAuthenticated || !user) return
+
+    const fetchIdeas = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('ideas')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+
+        if (data) {
+          setExistingIdeas(data)
+        }
+      } catch (error) {
+        console.error('Error fetching ideas:', error)
+      }
+    }
+
+    fetchIdeas()
+  }, [isAuthenticated, user])
+
+  // 유사도 기반 키워드 추천
+  useEffect(() => {
+    if (ideaInput.trim()) {
+      // 기존 키워드가 있는 아이디어들만 필터링
+      const ideasWithKeywords = existingIdeas.filter(
+        idea => idea.keywords && idea.keywords.length > 0
+      )
+
+      if (ideasWithKeywords.length > 0) {
+        // 유사도 기반 키워드 추천
+        const suggested = suggestSimilarKeywords(ideaInput, ideasWithKeywords, 7, 0.1)
+        // 이미 선택된 키워드는 제외
+        const filtered = suggested.filter(k => !selectedKeywords.includes(k))
+        setSuggestedKeywords(filtered)
+      } else {
+        // 키워드가 있는 아이디어가 없으면 빈 배열
+        setSuggestedKeywords([])
+      }
     } else {
       setSuggestedKeywords([])
     }
-  }, [ideaInput, selectedKeywords])
+  }, [ideaInput, selectedKeywords, existingIdeas])
 
   // textarea 높이 자동 조절
   useEffect(() => {
@@ -43,7 +80,7 @@ const MainPage = () => {
 
 
   const handleKeywordSelect = (keyword: string) => {
-    if (!selectedKeywords.includes(keyword) && selectedKeywords.length < 2) {
+    if (!selectedKeywords.includes(keyword) && selectedKeywords.length < 1) {
       setSelectedKeywords([...selectedKeywords, keyword])
       setSuggestedKeywords(suggestedKeywords.filter((k: string) => k !== keyword))
     }
