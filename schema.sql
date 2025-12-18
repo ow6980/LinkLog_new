@@ -34,40 +34,27 @@ create policy "Users can delete their own ideas"
   on ideas for delete
   using (auth.uid() = user_id);
 
--- 디자인 분야 아이디어 데이터 (키워드 제외, 타이틀만)
--- 유사도 기반 클러스터링을 위해 관련된 디자인 아이디어들로 구성
-INSERT INTO ideas (title, content, keywords, source_url, bookmarked, created_at, user_id) VALUES
--- UI/UX 디자인 관련
-('모바일 앱의 직관적인 네비게이션 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-15T10:30:00.000Z', NULL),
-('사용자 경험을 개선하는 마이크로 인터랙션 디자인', NULL, ARRAY[]::text[], NULL, true, '2024-01-16T11:00:00.000Z', NULL),
-('접근성을 고려한 UI 컴포넌트 디자인 시스템', NULL, ARRAY[]::text[], NULL, false, '2024-01-17T14:20:00.000Z', NULL),
-('다크모드와 라이트모드 전환 애니메이션', NULL, ARRAY[]::text[], NULL, true, '2024-01-18T09:15:00.000Z', NULL),
-('터치 제스처 기반 인터페이스 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-19T16:45:00.000Z', NULL),
+-- 움직임 관련 아이디어 데이터 (키워드 제외, 타이틀만)
+-- 유사도 기반 클러스터링을 위해 관련된 움직임 아이디어들로 구성
+-- 주의: user_id는 실제 사용자 ID로 교체해야 합니다 (RLS 정책 때문에)
+-- INSERT INTO ideas (title, content, keywords, source_url, bookmarked, created_at, user_id) VALUES
+-- ('일정한 간격으로 앞뒤로 흔들리는 금속 막대의 움직임', NULL, ARRAY[]::text[], NULL, false, '2024-01-15T10:30:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('초침이 일정한 속도로 계속 회전하는 아날로그 시계의 움직임', NULL, ARRAY[]::text[], NULL, false, '2024-01-16T11:00:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('박자에 맞춰 좌우로 흔들리는 메트로놈의 추', NULL, ARRAY[]::text[], NULL, false, '2024-01-17T14:20:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('기계가 작동 중일 때 규칙적으로 왕복하는 피스톤의 움직임', NULL, ARRAY[]::text[], NULL, false, '2024-01-18T09:15:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('고양이가 졸릴 때 천천히 깜빡이는 눈의 움직임', NULL, ARRAY[]::text[], NULL, false, '2024-01-19T16:45:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('긴장했을 때 손끝이 미세하게 떨리는 현상', NULL, ARRAY[]::text[], NULL, false, '2024-01-20T10:30:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('사람이 집중할수록 호흡이 점점 느려지는 변화', NULL, ARRAY[]::text[], NULL, false, '2024-01-21T11:20:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('강아지가 관심 있을 때 귀가 미묘하게 움직이는 반응', NULL, ARRAY[]::text[], NULL, false, '2024-01-22T13:10:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('무언가를 재촉하듯 빠르게 고개를 까딱이는 동작', NULL, ARRAY[]::text[], NULL, false, '2024-01-23T15:00:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('실망한 느낌을 주기 위해 천천히 아래로 기울어지는 형태', NULL, ARRAY[]::text[], NULL, false, '2024-01-24T09:30:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('반가움을 표현하듯 짧고 빠르게 흔들리는 움직임', NULL, ARRAY[]::text[], NULL, false, '2024-01-25T10:15:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('귀찮음을 표현하듯 힘없이 축 처지는 동작', NULL, ARRAY[]::text[], NULL, false, '2024-01-26T14:45:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('사용자가 오랫동안 반응하지 않으면 점점 커지는 움직임', NULL, ARRAY[]::text[], NULL, false, '2024-01-27T11:30:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('처음에는 작게, 시간이 지날수록 점점 눈에 띄게 반복되는 동작', NULL, ARRAY[]::text[], NULL, false, '2024-01-28T16:20:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('특정 시간이 되면 짧게 한 번만 움직여 존재를 알리는 방식', NULL, ARRAY[]::text[], NULL, false, '2024-01-29T09:00:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('바람이 불 때 천천히 좌우로 흔들리는 풀잎의 움직임', NULL, ARRAY[]::text[], NULL, false, '2024-01-30T10:30:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('물 위에 떠 있는 물체가 잔잔하게 출렁이는 모습', NULL, ARRAY[]::text[], NULL, false, '2024-01-31T13:15:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('해가 질 때 점점 낮아지며 사라지는 빛의 변화', NULL, ARRAY[]::text[], NULL, false, '2024-02-01T15:45:00.000Z', 'YOUR_USER_ID_HERE'),
+-- ('파도가 밀려왔다가 다시 빠져나가는 반복적인 흐름', NULL, ARRAY[]::text[], NULL, false, '2024-02-02T11:20:00.000Z', 'YOUR_USER_ID_HERE');
 
--- 웹 디자인 관련
-('반응형 웹사이트의 그리드 레이아웃 시스템', NULL, ARRAY[]::text[], NULL, true, '2024-01-20T10:30:00.000Z', NULL),
-('스크롤 기반 스토리텔링 웹 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-21T11:20:00.000Z', NULL),
-('패럴랙스 스크롤을 활용한 랜딩 페이지', NULL, ARRAY[]::text[], NULL, true, '2024-01-22T13:10:00.000Z', NULL),
-('웹 폰트와 타이포그래피 시스템 구축', NULL, ARRAY[]::text[], NULL, false, '2024-01-23T15:00:00.000Z', NULL),
-('CSS 그리드와 플렉스박스를 활용한 레이아웃', NULL, ARRAY[]::text[], NULL, true, '2024-01-24T09:30:00.000Z', NULL),
-
--- 브랜딩 및 그래픽 디자인
-('브랜드 아이덴티티를 반영한 로고 디자인', NULL, ARRAY[]::text[], NULL, false, '2024-01-25T10:15:00.000Z', NULL),
-('컬러 팔레트와 브랜드 가이드라인 제작', NULL, ARRAY[]::text[], NULL, true, '2024-01-26T14:45:00.000Z', NULL),
-('일관된 비주얼 언어를 위한 디자인 시스템', NULL, ARRAY[]::text[], NULL, false, '2024-01-27T11:30:00.000Z', NULL),
-('인포그래픽을 활용한 데이터 시각화', NULL, ARRAY[]::text[], NULL, true, '2024-01-28T16:20:00.000Z', NULL),
-('일러스트레이션 스타일 가이드 개발', NULL, ARRAY[]::text[], NULL, false, '2024-01-29T09:00:00.000Z', NULL),
-
--- 인터랙션 디자인
-('프로토타이핑 도구를 활용한 인터랙션 설계', NULL, ARRAY[]::text[], NULL, true, '2024-01-30T10:30:00.000Z', NULL),
-('사용자 플로우와 와이어프레임 설계', NULL, ARRAY[]::text[], NULL, false, '2024-01-31T13:15:00.000Z', NULL),
-('애니메이션 타이밍과 이징 함수 연구', NULL, ARRAY[]::text[], NULL, true, '2024-02-01T15:45:00.000Z', NULL),
-('피드백 메커니즘을 통한 사용자 경험 개선', NULL, ARRAY[]::text[], NULL, false, '2024-02-02T11:20:00.000Z', NULL),
-('모션 디자인 원칙과 베스트 프랙티스', NULL, ARRAY[]::text[], NULL, true, '2024-02-03T14:00:00.000Z', NULL),
-
--- 디자인 도구 및 워크플로우
-('Figma 컴포넌트 라이브러리 구축', NULL, ARRAY[]::text[], NULL, false, '2024-02-04T09:30:00.000Z', NULL),
-('디자인 토큰과 변수를 활용한 시스템', NULL, ARRAY[]::text[], NULL, true, '2024-02-05T16:10:00.000Z', NULL),
-('디자이너와 개발자 간 협업 워크플로우', NULL, ARRAY[]::text[], NULL, false, '2024-02-06T10:45:00.000Z', NULL),
-('디자인 시스템 문서화와 유지보수', NULL, ARRAY[]::text[], NULL, true, '2024-02-07T13:30:00.000Z', NULL),
-('자동화된 디자인 검증 도구 개발', NULL, ARRAY[]::text[], NULL, false, '2024-02-08T15:20:00.000Z', NULL);
