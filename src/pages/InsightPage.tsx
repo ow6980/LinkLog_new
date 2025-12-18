@@ -3,57 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 // @ts-expect-error - supabase client type is inferred from createClient
 import { supabase } from '../supabaseClient'
-import variablesData from '../variables.json'
 import './InsightPage.css'
 import { subWeeks } from 'date-fns'
 import * as d3 from 'd3'
-
-// variables.json에서 색상 추출
-const rgbToHex = (r: number, g: number, b: number): string => {
-  const toHex = (n: number) => {
-    const hex = Math.round(n * 255).toString(16)
-    return hex.length === 1 ? '0' + hex : hex
-  }
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
-
-const extractTagColors = () => {
-  const tagColors: Record<string, string> = {}
-  variablesData.variables.forEach((variable: any) => {
-    if (variable.name.startsWith('color/tag/')) {
-      const colorName = variable.name.replace('color/tag/', '')
-      const rgb = variable.resolvedValuesByMode['12:0'].resolvedValue
-      tagColors[colorName] = rgbToHex(rgb.r, rgb.g, rgb.b)
-    }
-  })
-  return tagColors
-}
-
-const extractGrayColors = () => {
-  const grayColors: Record<string, string> = {}
-  variablesData.variables.forEach((variable: any) => {
-    if (variable.name.startsWith('color/gray/')) {
-      const grayLevel = variable.name.replace('color/gray/', '')
-      const rgb = variable.resolvedValuesByMode['12:0'].resolvedValue
-      grayColors[grayLevel] = rgbToHex(rgb.r, rgb.g, rgb.b)
-    }
-  })
-  return grayColors
-}
-
-const TAG_COLORS = extractTagColors()
-const GRAY_COLORS = extractGrayColors()
-
-// 키워드 색상 매핑
-const KEYWORD_COLORS: Record<string, string> = {
-  Technology: TAG_COLORS.red || '#ff4848',
-  Innovation: TAG_COLORS.orange || '#ffae2b',
-  Data: TAG_COLORS.yellow || '#ffff06',
-  Design: TAG_COLORS.skyblue || '#0de7ff',
-  Business: TAG_COLORS.violet || '#8a38f5',
-  Research: TAG_COLORS.green || '#77ff00',
-  Development: TAG_COLORS.blue || '#0d52ff',
-}
+import { getKeywordColor, GRAY_COLORS } from '../utils/keywordColors'
 
 interface Idea {
   id: string
@@ -79,6 +32,8 @@ const InsightPage = () => {
   const [touchScrollLeft, setTouchScrollLeft] = useState(0)
   const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null)
   const weeklyChartRef = useRef<SVGSVGElement>(null)
+  const [editingKeyword, setEditingKeyword] = useState<string | null>(null)
+  const [editingKeywordValue, setEditingKeywordValue] = useState<string>('')
 
   // 현재 날짜 가져오기
   const currentDate = new Date()
@@ -375,7 +330,7 @@ const InsightPage = () => {
     return { weekData: weekDataWithCounts, keywords: sortedKeywords }
   }, [selectedDate, monthlyActivity, ideas])
 
-  // 주간 그래프 그리기
+  // 주간 그래프 그리기 (라인 그래프)
   useEffect(() => {
     if (!weeklyChartRef.current || !weeklyData || !('weekData' in weeklyData) || weeklyData.weekData.length === 0) return
 
@@ -396,10 +351,11 @@ const InsightPage = () => {
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`)
 
+    // X축을 scalePoint로 변경 (라인 그래프용)
     const x = d3
-      .scaleBand()
+      .scalePoint()
       .range([0, width])
-      .padding(0.2)
+      .padding(0.5)
       .domain(weeklyData.weekData.map(d => d.dayName))
 
     const maxActivity = Math.max(...weeklyData.weekData.map(d => d.activity), 1)
@@ -476,92 +432,68 @@ const InsightPage = () => {
       .style('z-index', 1000)
       .style('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.3)')
 
-    // 스택형 바 차트 그리기
-    const barGroups = g.selectAll('.bar-group')
-      .data(weeklyData.weekData)
-      .enter()
-      .append('g')
-      .attr('class', 'bar-group')
-      .attr('transform', (d) => `translate(${x(d.dayName) || 0}, 0)`)
-      .style('cursor', 'pointer')
+    // 라인 생성 함수
+    const line = d3.line<typeof weeklyData.weekData[0]>()
+      .x((d) => (x(d.dayName) || 0))
+      .y((d) => y(d.activity))
+      .curve(d3.curveMonotoneX) // 부드러운 곡선
 
-    // 각 날짜별로 키워드별 세그먼트 그리기
-    weeklyData.weekData.forEach((dayData, dayIdx) => {
-      let currentY = height
-      const segments: Array<{ keyword: string; count: number; color: string }> = []
-      
-      // 키워드가 있는 아이디어들
-      weeklyData.keywords.forEach((keyword) => {
-        const count = dayData.keywordCounts[keyword] || 0
-        if (count > 0) {
-          segments.push({
-            keyword,
-            count,
-            color: KEYWORD_COLORS[keyword] || GRAY_COLORS['300'] || '#949494'
-          })
+    // 라인 그리기
+    g.append('path')
+      .datum(weeklyData.weekData)
+      .attr('fill', 'none')
+      .attr('stroke', GRAY_COLORS['400'] || '#666666')
+      .attr('stroke-width', 2)
+      .attr('stroke-opacity', 0.5)
+      .attr('d', line)
+
+    // 각 날짜별로 원 그리기 (아이디어가 있는 경우)
+    weeklyData.weekData.forEach((dayData) => {
+      if (dayData.activity > 0) {
+        // 첫 번째 키워드 색상 가져오기
+        let circleColor = GRAY_COLORS['300'] || '#949494' // 기본값: 키워드 없음
+        if (dayData.dayIdeas && dayData.dayIdeas.length > 0) {
+          const firstIdea = dayData.dayIdeas[0]
+          if (firstIdea.keywords && firstIdea.keywords.length > 0) {
+            circleColor = getKeywordColor(firstIdea.keywords[0])
+          }
         }
-      })
-      
-      // 키워드가 없는 아이디어들
-      if (dayData.noKeywordCount > 0) {
-        segments.push({
-          keyword: 'No Keyword',
-          count: dayData.noKeywordCount,
-          color: GRAY_COLORS['300'] || '#949494'
-        })
-      }
-      
-      // 각 세그먼트 그리기
-      segments.forEach((segment, segIdx) => {
-        const segmentHeight = y(0) - y(segment.count)
-        const segmentY = currentY - segmentHeight
-        
-        barGroups.filter((_, i) => i === dayIdx)
-          .append('rect')
-          .attr('class', 'bar-segment')
-          .attr('x', 0)
-          .attr('y', segmentY)
-          .attr('width', x.bandwidth())
-          .attr('height', segmentHeight)
-          .attr('fill', segment.color)
-          .attr('fill-opacity', 0.8)
-          .attr('stroke', '#1e1e1e')
-          .attr('stroke-width', 0.5)
-          .attr('rx', segIdx === segments.length - 1 ? 4 : 0) // 맨 위만 둥근 모서리
-          .attr('ry', segIdx === segments.length - 1 ? 4 : 0)
+
+        const xPos = x(dayData.dayName) || 0
+        const yPos = y(dayData.activity)
+
+        g.append('circle')
+          .attr('cx', xPos)
+          .attr('cy', yPos)
+          .attr('r', 8) // 원의 반지름
+          .attr('fill', circleColor)
+          .style('cursor', 'pointer')
           .on('mouseover', function(event) {
             d3.select(this)
-              .attr('fill-opacity', 1)
-              .attr('stroke-width', 1.5)
+              .attr('r', 10)
             
             if (dayData.dayIdeas && dayData.dayIdeas.length > 0) {
-              const segmentIdeas = segment.keyword === 'No Keyword'
-                ? dayData.dayIdeas.filter(idea => !idea.keywords || idea.keywords.length === 0)
-                : dayData.dayIdeas.filter(idea => idea.keywords && idea.keywords[0] === segment.keyword)
-              
               const tooltipContent = `
                 <div style="font-weight: 600; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px;">
                   ${dayData.year}. ${dayData.month}. ${dayData.day} (${dayData.dayName})
-                </div>
-                <div style="font-size: 11px; margin-bottom: 4px; color: rgba(255,255,255,0.8);">
-                  <span style="display: inline-block; width: 8px; height: 8px; background-color: ${segment.color}; border-radius: 2px; margin-right: 6px; vertical-align: middle;"></span>
-                  ${segment.keyword}: ${segment.count}개
                 </div>
                 <div style="font-size: 11px; margin-bottom: 8px; color: rgba(255,255,255,0.8);">
                   총 ${dayData.activity}개 아이디어
                 </div>
                 <div style="max-height: 250px; overflow-y: auto;">
-                  ${segmentIdeas.slice(0, 10).map((idea: Idea) => {
+                  ${dayData.dayIdeas.slice(0, 10).map((idea: Idea) => {
+                    const ideaKeyword = idea.keywords && idea.keywords.length > 0 ? idea.keywords[0] : null
+                    const ideaColor = ideaKeyword ? getKeywordColor(ideaKeyword) : (GRAY_COLORS['300'] || '#949494')
                     return `
                       <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; padding: 6px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                        <div style="width: 8px; height: 8px; border-radius: 2px; background-color: ${segment.color}; flex-shrink: 0; margin-top: 4px;"></div>
+                        <div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${ideaColor}; flex-shrink: 0; margin-top: 4px;"></div>
                         <div style="flex: 1; font-size: 11px; line-height: 1.4; word-break: break-word;">
                           ${idea.title || 'Untitled'}
                         </div>
                       </div>
                     `
                   }).join('')}
-                  ${segmentIdeas.length > 10 ? `<div style="font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px;">+ ${segmentIdeas.length - 10}개 더...</div>` : ''}
+                  ${dayData.dayIdeas.length > 10 ? `<div style="font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px;">+ ${dayData.dayIdeas.length - 10}개 더...</div>` : ''}
                 </div>
               `
               
@@ -585,14 +517,11 @@ const InsightPage = () => {
           })
           .on('mouseout', function() {
             d3.select(this)
-              .attr('fill-opacity', 0.8)
-              .attr('stroke-width', 0.5)
+              .attr('r', 8)
             
             tooltip.style('opacity', 0)
           })
-        
-        currentY = segmentY
-      })
+      }
     })
 
     // cleanup 함수
@@ -687,9 +616,40 @@ const InsightPage = () => {
     const svg = d3.select(keywordChartRef.current)
     svg.selectAll('*').remove()
 
-    const margin = { top: 20, right: 20, bottom: 40, left: 50 }
-    const svgWidth = 623
+    // 키워드를 두 줄로 나누는 함수
+    const splitKeyword = (keyword: string): string[] => {
+      if (keyword === 'No Keyword') return [keyword]
+      
+      // 구분자 기준으로 나누기: "및", "의", "에", "을", "를", "과", "와", " "
+      const separators = [' 및 ', ' 의 ', ' 에 ', ' 을 ', ' 를 ', ' 과 ', ' 와 ', ' ']
+      let splitPoint = -1
+      
+      for (const sep of separators) {
+        const index = keyword.indexOf(sep)
+        if (index > 0 && index < keyword.length - sep.length) {
+          splitPoint = index + Math.floor(sep.length / 2)
+          break
+        }
+      }
+      
+      // 구분자를 찾지 못했으면 중간 지점에서 나누기
+      if (splitPoint === -1) {
+        splitPoint = Math.floor(keyword.length / 2)
+      }
+      
+      const line1 = keyword.substring(0, splitPoint).trim()
+      const line2 = keyword.substring(splitPoint).trim()
+      
+      return line2 ? [line1, line2] : [keyword]
+    }
+
+    // SVG 컨테이너의 실제 너비 계산 (950px - padding 28px * 2 = 894px)
+    const containerElement = keywordChartRef.current?.parentElement
+    const containerWidth = containerElement ? containerElement.clientWidth - 56 : 894 // padding 28px * 2
+    const svgWidth = containerWidth || 894
     const svgHeight = 280
+    
+    const margin = { top: 20, right: 20, bottom: 60, left: 50 } // bottom을 60으로 증가
     const width = svgWidth - margin.left - margin.right
     const height = svgHeight - margin.top - margin.bottom
 
@@ -702,7 +662,7 @@ const InsightPage = () => {
     const x = d3
       .scaleBand()
       .range([0, width])
-      .padding(0.2)
+      .padding(0.3)
       .domain(keywordFreq.map((d) => d.keyword))
 
     // y축 최대값을 데이터에 맞게 동적으로 설정
@@ -746,19 +706,36 @@ const InsightPage = () => {
     yAxis.selectAll('.domain').remove()
     yAxis.selectAll('.tick line').remove()
 
+    // X축 레이블을 두 줄로 표시
     const xAxis = g
       .append('g')
       .attr('transform', `translate(0,${height})`)
-      .call(d3.axisBottom(x))
     
-    xAxis.selectAll('text')
-      .style('font-family', 'Montserrat')
-      .style('font-size', '10px')
-      .style('fill', GRAY_COLORS['400'] || '#666666')
-      .style('text-anchor', 'middle')
+    // X축 도메인 라인
+    xAxis.append('line')
+      .attr('x1', 0)
+      .attr('x2', width)
+      .attr('y1', 0)
+      .attr('y2', 0)
+      .attr('stroke', '#1e1e1e')
+      .attr('stroke-width', 1)
     
-    xAxis.selectAll('.domain').remove()
-    xAxis.selectAll('.tick line').remove()
+    // 각 키워드에 대해 레이블 생성
+    keywordFreq.forEach((d) => {
+      const xPos = (x(d.keyword) || 0) + x.bandwidth() / 2
+      const lines = splitKeyword(d.keyword)
+      
+      lines.forEach((line, index) => {
+        xAxis.append('text')
+          .attr('x', xPos)
+          .attr('y', 12 + index * 12) // 첫 줄: 12px, 두 번째 줄: 24px
+          .attr('text-anchor', 'middle')
+          .style('font-family', 'Montserrat')
+          .style('font-size', '10px')
+          .style('fill', GRAY_COLORS['400'] || '#666666')
+          .text(line)
+      })
+    })
 
     // 바 차트
     g.selectAll('.bar')
@@ -776,14 +753,14 @@ const InsightPage = () => {
         if (d.keyword === 'No Keyword') {
           return GRAY_COLORS['300'] || '#949494'
         }
-        return KEYWORD_COLORS[d.keyword] || '#666666'
+        return getKeywordColor(d.keyword)
       })
       .attr('fill-opacity', 0.05)
       .attr('stroke', (d) => {
         if (d.keyword === 'No Keyword') {
           return GRAY_COLORS['300'] || '#949494'
         }
-        return KEYWORD_COLORS[d.keyword] || '#666666'
+        return getKeywordColor(d.keyword)
       })
       .attr('stroke-width', 1)
       .style('cursor', 'pointer')
@@ -846,7 +823,10 @@ const InsightPage = () => {
               </div>
               <div className="activity-cards">
                 {mostActiveIdea && (
-                  <div className="activity-card">
+                  <button
+                    className="activity-card"
+                    onClick={() => navigate(`/idea/${mostActiveIdea.id}`)}
+                  >
                     <div className="activity-header">
                       <div className="activity-icon">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -867,7 +847,7 @@ const InsightPage = () => {
                             key={keyword}
                             className="activity-tag"
                             style={{
-                              backgroundColor: KEYWORD_COLORS[keyword] || TAG_COLORS.skyblue,
+                              backgroundColor: getKeywordColor(keyword),
                             }}
                           >
                             {keyword}
@@ -875,7 +855,7 @@ const InsightPage = () => {
                         ))}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 )}
 
                 <div className="activity-card">
@@ -894,11 +874,22 @@ const InsightPage = () => {
                       // 키워드가 배정되어 있지 않으면 그레이 컬러 사용
                       const hasKeywords = idea.keywords && idea.keywords.length > 0
                       const firstKeyword = hasKeywords ? idea.keywords[0] : null
-                      const color = hasKeywords && firstKeyword && KEYWORD_COLORS[firstKeyword]
-                        ? KEYWORD_COLORS[firstKeyword]
+                      const color = hasKeywords && firstKeyword
+                        ? getKeywordColor(firstKeyword)
                         : (GRAY_COLORS['300'] || '#949494')
                       return (
-                        <div key={idea.id} className="new-idea-item">
+                        <button
+                          key={idea.id}
+                          className="new-idea-item"
+                          onClick={() => navigate(`/idea/${idea.id}`)}
+                          style={{
+                            background: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            width: '100%',
+                            textAlign: 'left'
+                          }}
+                        >
                           <div
                             className="new-idea-dot"
                             style={{ backgroundColor: color }}
@@ -906,7 +897,7 @@ const InsightPage = () => {
                           <span className="new-idea-text">
                             {idea.title || (idea.content ? idea.content.substring(0, 30) : '')}
                           </span>
-                        </div>
+                        </button>
                       )
                     })}
                   </div>
@@ -933,7 +924,7 @@ const InsightPage = () => {
                         style={{ 
                           backgroundColor: selectedKeyword === 'No Keyword' 
                             ? (GRAY_COLORS['300'] || '#949494')
-                            : (TAG_COLORS.skyblue || '#00d9ff')
+                            : getKeywordColor(selectedKeyword)
                         }}
                       ></div>
                       <span className="selected-keyword-name">
@@ -954,11 +945,22 @@ const InsightPage = () => {
                         // 키워드가 배정되어 있지 않으면 그레이 컬러 사용
                         const hasKeywords = idea.keywords && idea.keywords.length > 0
                         const ideaFirstKeyword = hasKeywords ? idea.keywords[0] : null
-                        const ideaColor = hasKeywords && ideaFirstKeyword && KEYWORD_COLORS[ideaFirstKeyword]
-                          ? KEYWORD_COLORS[ideaFirstKeyword]
+                        const ideaColor = hasKeywords && ideaFirstKeyword
+                          ? getKeywordColor(ideaFirstKeyword)
                           : (GRAY_COLORS['300'] || '#949494')
                         return (
-                          <div key={idea.id} className="selected-idea-item">
+                          <button
+                            key={idea.id}
+                            className="selected-idea-item"
+                            onClick={() => navigate(`/idea/${idea.id}`)}
+                            style={{
+                              background: 'none',
+                              padding: 0,
+                              cursor: 'pointer',
+                              width: '100%',
+                              textAlign: 'left'
+                            }}
+                          >
                             <div
                               className="selected-idea-dot"
                               style={{ backgroundColor: ideaColor }}
@@ -966,7 +968,7 @@ const InsightPage = () => {
                             <span className="selected-idea-text">
                               {idea.title || (idea.content ? idea.content.substring(0, 50) : '')}
                             </span>
-                          </div>
+                          </button>
                         )
                       })}
                     </div>
@@ -978,7 +980,7 @@ const InsightPage = () => {
                         className="selected-keyword-dot"
                         style={{ backgroundColor: keywordFreq.length > 0 && keywordFreq[0].keyword === 'No Keyword'
                           ? (GRAY_COLORS['300'] || '#949494')
-                          : (TAG_COLORS.skyblue || '#00d9ff')
+                          : (keywordFreq.length > 0 ? getKeywordColor(keywordFreq[0].keyword) : GRAY_COLORS['300'] || '#949494')
                         }}
                       ></div>
                       <span className="selected-keyword-name">
@@ -999,11 +1001,22 @@ const InsightPage = () => {
                         // 키워드가 배정되어 있지 않으면 그레이 컬러 사용
                         const hasKeywords = idea.keywords && idea.keywords.length > 0
                         const ideaFirstKeyword = hasKeywords ? idea.keywords[0] : null
-                        const ideaColor = hasKeywords && ideaFirstKeyword && KEYWORD_COLORS[ideaFirstKeyword]
-                          ? KEYWORD_COLORS[ideaFirstKeyword]
+                        const ideaColor = hasKeywords && ideaFirstKeyword
+                          ? getKeywordColor(ideaFirstKeyword)
                           : (GRAY_COLORS['300'] || '#949494')
                         return (
-                          <div key={idea.id} className="selected-idea-item">
+                          <button
+                            key={idea.id}
+                            className="selected-idea-item"
+                            onClick={() => navigate(`/idea/${idea.id}`)}
+                            style={{
+                              background: 'none',
+                              padding: 0,
+                              cursor: 'pointer',
+                              width: '100%',
+                              textAlign: 'left'
+                            }}
+                          >
                             <div
                               className="selected-idea-dot"
                               style={{ backgroundColor: ideaColor }}
@@ -1011,7 +1024,7 @@ const InsightPage = () => {
                             <span className="selected-idea-text">
                               {idea.title || (idea.content ? idea.content.substring(0, 50) : '')}
                             </span>
-                          </div>
+                          </button>
                         )
                       })}
                     </div>
@@ -1024,45 +1037,157 @@ const InsightPage = () => {
           <div className="keyword-grouping-section">
             <div className="keyword-grouping">
               <div className="section-title-area">
-                <h2 className="section-title">Merge Similar Keywords</h2>
-                <p className="section-subtitle">Merge keywords that represent the same concept</p>
+                <h2 className="section-title">edit keywords</h2>
+                <p className="section-subtitle">Edit keywords Name</p>
               </div>
               <div className="grouping-list-horizontal">
-                {keywordGroups.map((group) => {
-                  const color = TAG_COLORS.skyblue || '#00d9ff'
-                  return (
-                    <div 
-                      key={group.keyword} 
-                      className="grouping-card" 
-                      onClick={() => setSelectedKeyword(group.keyword)} 
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <div className="grouping-header">
-                        <div
-                          className="grouping-dot"
-                          style={{ backgroundColor: color }}
-                        ></div>
-                        <span className="grouping-name">{group.keyword}</span>
-                        <span className="grouping-count">
-                          ({group.count} ideas)
-                        </span>
-                      </div>
-                      <div className="grouping-tags">
-                        {group.topKeywords.map((keyword) => (
-                          <span
-                            key={keyword}
-                            className="grouping-tag"
-                            style={{
-                              backgroundColor: TAG_COLORS.skyblue || '#0de7ff',
-                            }}
-                          >
-                            {keyword}({group.keywordCounts[keyword]})
+                {(() => {
+                  // 모든 고유 키워드 추출 및 카운트
+                  const allKeywordsMap = new Map<string, number>()
+                  ideas.forEach((idea) => {
+                    if (idea.keywords && idea.keywords.length > 0) {
+                      idea.keywords.forEach((keyword) => {
+                        if (keyword && keyword !== 'No Keyword') {
+                          allKeywordsMap.set(keyword, (allKeywordsMap.get(keyword) || 0) + 1)
+                        }
+                      })
+                    }
+                  })
+                  
+                  const allKeywords = Array.from(allKeywordsMap.entries())
+                    .map(([keyword, count]) => ({ keyword, count }))
+                    .sort((a, b) => b.count - a.count)
+                  
+                  return allKeywords.map((item) => {
+                    const color = getKeywordColor(item.keyword)
+                    const isEditing = editingKeyword === item.keyword
+                    
+                    const handleKeywordClick = (e: React.MouseEvent) => {
+                      e.stopPropagation()
+                      setEditingKeyword(item.keyword)
+                      setEditingKeywordValue(item.keyword)
+                    }
+                    
+                    const handleSaveKeyword = async () => {
+                      if (!editingKeywordValue.trim() || editingKeywordValue === item.keyword) {
+                        setEditingKeyword(null)
+                        return
+                      }
+                      
+                      const newKeyword = editingKeywordValue.trim()
+                      
+                      // 중복 체크
+                      if (allKeywords.some(k => k.keyword === newKeyword && k.keyword !== item.keyword)) {
+                        alert('이미 존재하는 키워드입니다.')
+                        setEditingKeyword(null)
+                        setEditingKeywordValue('')
+                        return
+                      }
+                      
+                      try {
+                        // 해당 키워드를 가진 모든 아이디어 찾기
+                        const ideasWithKeyword = ideas.filter(idea => 
+                          idea.keywords && idea.keywords.includes(item.keyword)
+                        )
+                        
+                        // 각 아이디어의 keywords 배열에서 기존 키워드를 새 키워드로 교체
+                        for (const idea of ideasWithKeyword) {
+                          const updatedKeywords = idea.keywords.map(k => 
+                            k === item.keyword ? newKeyword : k
+                          )
+                          
+                          // @ts-expect-error - supabase client type is inferred
+                          const { error } = await supabase
+                            .from('ideas')
+                            .update({ keywords: updatedKeywords })
+                            .eq('id', idea.id)
+                          
+                          if (error) throw error
+                        }
+                        
+                        // 로컬 상태 업데이트
+                        setIdeas(prevIdeas => 
+                          prevIdeas.map(idea => {
+                            if (idea.keywords && idea.keywords.includes(item.keyword)) {
+                              return {
+                                ...idea,
+                                keywords: idea.keywords.map(k => 
+                                  k === item.keyword ? newKeyword : k
+                                )
+                              }
+                            }
+                            return idea
+                          })
+                        )
+                        
+                        setEditingKeyword(null)
+                      } catch (error) {
+                        console.error('Error updating keyword:', error)
+                        alert('키워드 업데이트 중 오류가 발생했습니다.')
+                      }
+                    }
+                    
+                    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleSaveKeyword()
+                      } else if (e.key === 'Escape') {
+                        setEditingKeyword(null)
+                        setEditingKeywordValue('')
+                      }
+                    }
+                    
+                    return (
+                      <div 
+                        key={item.keyword} 
+                        className="grouping-card" 
+                        style={{ cursor: isEditing ? 'default' : 'pointer' }}
+                      >
+                        <div className="grouping-header">
+                          <div
+                            className="grouping-dot"
+                            style={{ backgroundColor: color }}
+                          ></div>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editingKeywordValue}
+                              onChange={(e) => setEditingKeywordValue(e.target.value)}
+                              onBlur={handleSaveKeyword}
+                              onKeyDown={handleKeyDown}
+                              onClick={(e) => e.stopPropagation()}
+                              className="grouping-name-input"
+                              autoFocus
+                              style={{
+                                fontFamily: 'Montserrat, sans-serif',
+                                fontSize: '16px',
+                                fontWeight: 400,
+                                color: '#1e1e1e',
+                                border: '1px solid #1e1e1e',
+                                padding: '2px 4px',
+                                outline: 'none',
+                                background: 'transparent',
+                                minWidth: '100px',
+                                flex: 1,
+                              }}
+                            />
+                          ) : (
+                            <span 
+                              className="grouping-name"
+                              onClick={handleKeywordClick}
+                              style={{ cursor: 'text' }}
+                            >
+                              {item.keyword}
+                            </span>
+                          )}
+                          <span className="grouping-count">
+                            ({item.count} ideas)
                           </span>
-                        ))}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })
+                })()}
               </div>
             </div>
           </div>

@@ -185,6 +185,17 @@
   overflow: hidden;
 }
 
+button.activity-card {
+  background: none;
+  border: 0.5px solid #1e1e1e;
+  padding: 17px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
 .activity-header {
   display: flex;
   align-items: center;
@@ -277,6 +288,16 @@
   padding: 4px 0;
   box-sizing: border-box;
   width: 100%;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+button.new-idea-item {
+  border: none;
+  background: none;
+  outline: none;
+  padding: 4px 0;
 }
 
 .new-idea-dot {
@@ -317,11 +338,11 @@
 .chart-wrapper {
   display: flex;
   gap: 20px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .chart-container {
-  flex: 0 0 679px;
+  flex: 0 0 950px;
   border: 0.5px solid #1e1e1e;
   padding: 20px 28px;
   box-sizing: border-box;
@@ -425,12 +446,13 @@
 
 .grouping-card {
   border: 0.5px solid #2a2a2a;
-  padding: 17px;
+  padding: 12px 17px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 85px;
+  gap: 0;
+  min-height: auto;
+  height: fit-content;
   min-width: 288px;
   flex: 0 0 342px;
 }
@@ -439,7 +461,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 16px;
+  height: auto;
+  min-height: 16px;
 }
 
 .grouping-dot {
@@ -491,6 +514,7 @@
 /* Selected Keyword Panel (Figma 디자인) */
 .selected-keyword-panel {
   flex: 1;
+  min-width: 0;
   border: 0.5px solid #2a2a2a;
   padding: 17px;
   box-sizing: border-box;
@@ -499,7 +523,7 @@
   gap: 12px;
   height: 320px;
   overflow: hidden;
-  min-width: 0;
+  align-self: stretch;
 }
 
 .selected-keyword-header {
@@ -582,6 +606,16 @@
   padding: 4px 0;
   box-sizing: border-box;
   width: 100%;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+button.selected-idea-item {
+  border: none;
+  background: none;
+  outline: none;
+  padding: 4px 0;
 }
 
 .selected-idea-dot {
