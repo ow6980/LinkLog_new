@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
 import BookmarkCard from '../components/BookmarkCard'
+import BookmarkIcon from '../components/BookmarkIcon'
 import './BookmarkPage.css'
 
 interface Idea {
@@ -101,22 +102,21 @@ const BookmarkPage = () => {
     return count
   }
 
-  const handleBookmarkToggle = async (id: string) => {
+  const handleBookmarkToggle = async (ideaId: string) => {
     try {
-      const idea = ideas.find(i => i.id === id)
+      const idea = ideas.find(i => i.id === ideaId)
       if (!idea) return
+      const newBookmarkedState = !idea.bookmarked
+
+      // Optimistic remove when unbookmarking
+      if (!newBookmarkedState) setIdeas(prev => prev.filter(i => i.id !== ideaId))
 
       const { error } = await supabase
         .from('ideas')
-        .update({ bookmarked: !idea.bookmarked })
-        .eq('id', id)
+        .update({ bookmarked: newBookmarkedState })
+        .eq('id', ideaId)
 
       if (error) throw error
-
-      // Update local state
-      setIdeas(ideas.map(i => 
-        i.id === id ? { ...i, bookmarked: !i.bookmarked } : i
-      ))
     } catch (error) {
       console.error('Error toggling bookmark:', error)
     }
@@ -129,13 +129,11 @@ const BookmarkPage = () => {
           <div className="bookmark-title-block">
             <div className="title-row">
               <div className="title-icon">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M14 2L17.09 10.26L26 11.27L19 17.14L20.18 26.02L14 22L7.82 26.02L9 17.14L2 11.27L10.91 10.26L14 2Z" fill="#1e1e1e"/>
-                </svg>
+                <BookmarkIcon marked />
               </div>
               <h1 className="bookmark-title">Bookmarks</h1>
             </div>
-            <p className="bookmark-subtitle">Your saved ideas</p>
+            <p className="bookmark-subtitle">{ideas.length} ideas saved</p>
           </div>
         </div>
         
@@ -145,18 +143,15 @@ const BookmarkPage = () => {
           </div>
         ) : (
           <div className="bookmark-grid">
-            {ideas.map((idea, index) => {
-              const connectedCount = getConnectedIdeasCount(idea)
-              return (
-                <BookmarkCard
-                  key={idea.id}
-                  idea={idea}
-                  ideaNumber={index + 1}
-                  connectedCount={connectedCount}
-                  onBookmarkToggle={handleBookmarkToggle}
-                />
-              )
-            })}
+            {ideas.map((idea, index) => (
+              <BookmarkCard
+                key={idea.id}
+                idea={idea}
+                ideaNumber={index + 1}
+                connectedCount={getConnectedIdeasCount(idea)}
+                onBookmarkToggle={handleBookmarkToggle}
+              />
+            ))}
           </div>
         )}
       </div>
