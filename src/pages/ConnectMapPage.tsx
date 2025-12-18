@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../supabaseClient'
 import variablesData from '../variables.json'
 import { extractMeaningfulKeywords } from '../utils/keywordExtractor'
+import { generateKeywordsWithGemini, updateKeywordsInDatabase } from '../utils/geminiKeywordGenerator'
 import './ConnectMapPage.css'
 
 // variables.json에서 색상 추출 (RGB를 HEX로 변환)
@@ -145,10 +146,12 @@ const ConnectMapPage = () => {
   const svgRef = useRef<SVGSVGElement>(null)
   const [ideas, setIdeas] = useState<Idea[]>([])
   const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([])
+  const [keywordColorMap, setKeywordColorMap] = useState<Map<string, string>>(new Map())
   const [ideaNodes, setIdeaNodes] = useState<IdeaNode[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [selectedIdea, setSelectedIdea] = useState<Idea | null>(null)
   const [hoveredIdea, setHoveredIdea] = useState<string | null>(null)
+  const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false)
   
   // 3D 공간 상태
   const [rotation, setRotation] = useState({ x: -15, y: 25, z: 0 }) // 초기 회전 각도
@@ -364,48 +367,263 @@ const ConnectMapPage = () => {
     // 3단계: 클러스터를 크기 순으로 정렬
     clusters.sort((a, b) => b.length - a.length)
     
-    // 키워드 없이 모든 아이디어를 개별 노드로 처리 (Gemini로 추후 키워드 생성 예정)
+    // 키워드별로 아이디어 그룹화
+    const keywordMap = new Map<string, Idea[]>()
+    
+    ideas.forEach(idea => {
+      // 키워드가 있으면 첫 번째 키워드로 그룹화, 없으면 'ungrouped'로 분류
+      const keyword = idea.keywords && idea.keywords.length > 0 ? idea.keywords[0] : 'ungrouped'
+      if (!keywordMap.has(keyword)) {
+        keywordMap.set(keyword, [])
+      }
+      keywordMap.get(keyword)!.push(idea)
+    })
+    
+    // 키워드 그룹 생성 (ungrouped 제외)
+    const keywordGroupsList = Array.from(keywordMap.entries())
+      .filter(([keyword]) => keyword !== 'ungrouped')
+      .map(([keyword, ideas]) => ({ keyword, ideas }))
+    
+    // 키워드별 색상 할당
+    const newKeywordColorMap = new Map<string, string>()
+    let colorIndex = 0
+    keywordGroupsList.forEach(({ keyword }) => {
+      if (!newKeywordColorMap.has(keyword)) {
+        newKeywordColorMap.set(keyword, AVAILABLE_COLORS[colorIndex % AVAILABLE_COLORS.length])
+        colorIndex++
+      }
+    })
+    setKeywordColorMap(newKeywordColorMap)
+    
+    // KeywordGroup 타입에 맞게 변환
+    const keywordGroups: KeywordGroup[] = keywordGroupsList.map(({ keyword, ideas }) => ({
+      keyword,
+      color: newKeywordColorMap.get(keyword) || GRAY_COLORS['500'] || '#666666',
+      ideas,
+      position: { x: 0, y: 0, z: 0 }, // 3D 박스 렌더링 안 함
+      boxSize: { width: 0, height: 0, depth: 0 }, // 3D 박스 렌더링 안 함
+    }))
+    
+    setKeywordGroups(keywordGroups)
+    
+    // 키워드별로 아이디어 그룹화
+    const keywordIdeasMap = new Map<string, Idea[]>()
+    const ungroupedIdeas: Idea[] = []
+    
+    ideas.forEach(idea => {
+      const keyword = idea.keywords && idea.keywords.length > 0 ? idea.keywords[0] : ''
+      if (keyword) {
+        if (!keywordIdeasMap.has(keyword)) {
+          keywordIdeasMap.set(keyword, [])
+        }
+        keywordIdeasMap.get(keyword)!.push(idea)
+      } else {
+        ungroupedIdeas.push(idea)
+      }
+    })
+    
+    // 1단계: 키워드 그룹별로 박스 영역 정의 (Figma 디자인처럼)
+    const keywordBoxAreas = new Map<string, {
+      center: { x: number; y: number; z: number }
+      size: { width: number; height: number; depth: number }
+    }>()
+    
+    const keywordGroupsArray = Array.from(keywordIdeasMap.entries())
+    const totalGroups = keywordGroupsArray.length + (ungroupedIdeas.length > 0 ? 1 : 0)
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+    const boxBaseRadius = 900 // 박스 중심 간 거리
+    
+    // 키워드 그룹별 박스 영역 배치
+    keywordGroupsArray.forEach(([keyword, groupIdeas], groupIndex) => {
+      const y = totalGroups > 1 ? 1 - (groupIndex / (totalGroups - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(1 - y * y)
+      const theta = goldenAngle * groupIndex
+        
+      // 박스 중심 위치
+      const boxCenter = {
+        x: Math.cos(theta) * radius_at_y * boxBaseRadius,
+          y: y * 700,
+        z: Math.sin(theta) * radius_at_y * boxBaseRadius
+      }
+      
+      // 박스 크기 계산 (노드 개수와 키워드 이름 특성에 따라 직육면체 또는 정육면체)
+      const nodeCount = groupIdeas.length
+      const baseBoxSize = 400 // 기본 박스 크기
+      const maxBoxSize = 1000 // 최대 박스 크기
+      
+      // 키워드 이름의 길이와 특성 확인 (긴 키워드나 복합 키워드는 가로로 넓게)
+      const keywordLength = keyword.length
+      const hasMultipleWords = keyword.includes(' ') || keyword.includes('및') || keyword.includes('및') || keyword.length > 8
+      const shouldBeWide = hasMultipleWords || keywordLength > 10
+      
+      let boxWidth: number
+      let boxHeight: number
+      let boxDepth: number
+      
+      if (nodeCount <= 5) {
+        if (shouldBeWide) {
+          // 긴 키워드는 가로로 넓게
+          boxWidth = baseBoxSize * 1.5
+          boxHeight = baseBoxSize * 0.8
+          boxDepth = baseBoxSize * 0.8
+        } else {
+          // 노드가 적으면 정육면체
+          boxWidth = baseBoxSize
+          boxHeight = baseBoxSize
+          boxDepth = baseBoxSize
+        }
+      } else if (nodeCount <= 10) {
+        // 노드가 중간이면 약간 직육면체 (가로로 길게)
+        const widthMultiplier = shouldBeWide ? 1.8 : 1.0
+        boxWidth = (baseBoxSize + (nodeCount - 5) * 40) * widthMultiplier
+        boxHeight = baseBoxSize * (shouldBeWide ? 0.75 : 1.0)
+        boxDepth = baseBoxSize * 0.8
+      } else {
+        // 노드가 많으면 직육면체 (가로로 더 길게)
+        const extraNodes = nodeCount - 10
+        const widthMultiplier = shouldBeWide ? 1.8 : 1.0
+        boxWidth = Math.min(maxBoxSize, (baseBoxSize + extraNodes * 50) * widthMultiplier)
+        boxHeight = baseBoxSize * (shouldBeWide ? 0.7 : 0.9)
+        boxDepth = baseBoxSize * 0.7
+      }
+      
+      keywordBoxAreas.set(keyword, {
+        center: boxCenter,
+        size: { width: boxWidth, height: boxHeight, depth: boxDepth }
+      })
+    })
+    
+    // 키워드 없는 아이디어들도 박스 영역 정의
+    if (ungroupedIdeas.length > 0) {
+      const ungroupedIndex = keywordGroupsArray.length
+      const y = totalGroups > 1 ? 1 - (ungroupedIndex / (totalGroups - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(1 - y * y)
+      const theta = goldenAngle * ungroupedIndex
+        
+      const boxCenter = {
+        x: Math.cos(theta) * radius_at_y * boxBaseRadius,
+          y: y * 700,
+        z: Math.sin(theta) * radius_at_y * boxBaseRadius
+      }
+      
+      const nodeCount = ungroupedIdeas.length
+      const baseBoxSize = 400
+      const maxBoxSize = 800
+      
+      let boxWidth: number
+      let boxHeight: number
+      let boxDepth: number
+      
+      if (nodeCount <= 5) {
+        boxWidth = baseBoxSize
+        boxHeight = baseBoxSize
+        boxDepth = baseBoxSize
+      } else if (nodeCount <= 10) {
+        boxWidth = baseBoxSize + (nodeCount - 5) * 40
+        boxHeight = baseBoxSize
+        boxDepth = baseBoxSize * 0.8
+      } else {
+        const extraNodes = nodeCount - 10
+        boxWidth = Math.min(maxBoxSize, baseBoxSize + extraNodes * 50)
+        boxHeight = baseBoxSize * 0.9
+        boxDepth = baseBoxSize * 0.7
+      }
+      
+      keywordBoxAreas.set('', {
+        center: boxCenter,
+        size: { width: boxWidth, height: boxHeight, depth: boxDepth }
+      })
+    }
+    
+    // 2단계: 각 박스 영역 안에 노드들을 배열
     const nodes: IdeaNode[] = []
     const processedIdeaIds = new Set<string>()
     
-    // 모든 아이디어를 구 형태로 분산 배치
-    ideas.forEach(idea => {
-      if (processedIdeaIds.has(idea.id)) return
-      processedIdeaIds.add(idea.id)
+    keywordGroupsArray.forEach(([keyword, groupIdeas]) => {
+      const boxArea = keywordBoxAreas.get(keyword)
+      if (!boxArea) return
       
-      // 구 형태로 전체 공간에 분산 배치
-      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-      const ideaIndex = ideas.findIndex(i => i.id === idea.id)
-      const y = ideas.length > 1 ? 1 - (ideaIndex / (ideas.length - 1)) * 2 : 0
-        const radius_at_y = Math.sqrt(1 - y * y)
-      const theta = goldenAngle * ideaIndex
-      const baseRadius = 800
+      const { center: boxCenter, size: boxSize } = boxArea
+      const { width, height, depth } = boxSize
+      
+      // 박스 내부에 노드들을 구 형태로 배치
+      groupIdeas.forEach((idea, ideaIndex) => {
+        if (processedIdeaIds.has(idea.id)) return
+        processedIdeaIds.add(idea.id)
+        
+        // 박스 내부의 상대적 위치 (0~1 범위)
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        const relativeY = groupIdeas.length > 1 ? 1 - (ideaIndex / (groupIdeas.length - 1)) * 2 : 0
+        const radius_at_y = Math.sqrt(1 - relativeY * relativeY)
+        const theta = goldenAngle * ideaIndex
+        
+        // 박스 크기의 80% 내부에 배치 (여유 공간 확보)
+        const innerRadius = 0.4 // 박스 크기의 40% 반경 사용
+        const nodeX = Math.cos(theta) * radius_at_y * width * innerRadius
+        const nodeY = relativeY * height * innerRadius
+        const nodeZ = Math.sin(theta) * radius_at_y * depth * innerRadius
         
         const position = {
-        x: Math.cos(theta) * radius_at_y * baseRadius,
-        y: y * 600,
-        z: Math.sin(theta) * radius_at_y * baseRadius
+          x: boxCenter.x + nodeX,
+          y: boxCenter.y + nodeY,
+          z: boxCenter.z + nodeZ
         }
         
         nodes.push({
           ...idea,
           position,
-        keyword: '', // 키워드 없음 (Gemini로 추후 생성 예정)
+        keyword,
         })
       })
+    })
+    
+    // 키워드 없는 아이디어들도 박스 안에 배치
+    if (ungroupedIdeas.length > 0) {
+      const boxArea = keywordBoxAreas.get('')
+      if (boxArea) {
+        const { center: boxCenter, size: boxSize } = boxArea
+        const { width, height, depth } = boxSize
+        
+        ungroupedIdeas.forEach((idea, ideaIndex) => {
+          if (processedIdeaIds.has(idea.id)) return
+          processedIdeaIds.add(idea.id)
+          
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+          const relativeY = ungroupedIdeas.length > 1 ? 1 - (ideaIndex / (ungroupedIdeas.length - 1)) * 2 : 0
+          const radius_at_y = Math.sqrt(1 - relativeY * relativeY)
+          const theta = goldenAngle * ideaIndex
+          
+          const innerRadius = 0.4
+          const nodeX = Math.cos(theta) * radius_at_y * width * innerRadius
+          const nodeY = relativeY * height * innerRadius
+          const nodeZ = Math.sin(theta) * radius_at_y * depth * innerRadius
+          
+          const position = {
+            x: boxCenter.x + nodeX,
+            y: boxCenter.y + nodeY,
+            z: boxCenter.z + nodeZ
+          }
+          
+          nodes.push({
+            ...idea,
+            position,
+            keyword: '',
+          })
+        })
+      }
+    }
     
     // 디버깅: 노드 생성 확인
     console.log('노드 생성:', {
       totalIdeas: ideas.length,
-      allNodes: nodes.length
+      allNodes: nodes.length,
+      keywordGroups: keywordGroups.length,
+      nodesWithKeywords: nodes.filter(n => n.keyword).length,
+      keywordColorMapSize: newKeywordColorMap.size
     })
 
-    // 키워드 그룹 없이 모든 노드를 그대로 사용
-    const groups: KeywordGroup[] = []
-    const updatedNodes: IdeaNode[] = [...nodes] // 모든 노드를 그대로 사용
-
-    // 키워드 그룹 없음 (Gemini로 추후 생성 예정)
-    setKeywordGroups([])
+    // 모든 노드를 그대로 사용
+    const updatedNodes: IdeaNode[] = [...nodes]
 
     // 연결선 생성 (유사도 기반, 키워드 무시)
     const conns: Connection[] = []
@@ -452,7 +670,9 @@ const ConnectMapPage = () => {
     
     nodesForConnections.forEach(node => {
       nodeConnectionCounts.set(node.id, 0)
-      nodeConnectedKeywords.set(node.id, new Set([node.keyword])) // 자기 자신의 키워드 포함
+      // 노드의 키워드가 있으면 사용, 없으면 빈 문자열
+      const nodeKeyword = node.keyword || (node.keywords && node.keywords.length > 0 ? node.keywords[0] : '')
+      nodeConnectedKeywords.set(node.id, new Set(nodeKeyword ? [nodeKeyword] : [])) // 자기 자신의 키워드 포함
     })
     
     conns.forEach(conn => {
@@ -501,6 +721,30 @@ const ConnectMapPage = () => {
     
     setIdeaNodes(finalNodesWithSizes)
     setConnections(conns)
+    
+    // 키워드 그룹의 박스 영역 정보 업데이트 (이미 정의된 박스 영역 사용)
+    const updatedKeywordGroups = keywordGroups.map(group => {
+      // 키워드별로 정의된 박스 영역 찾기
+      const keyword = group.keyword
+      const boxArea = keywordBoxAreas.get(keyword)
+      
+      if (boxArea) {
+        return {
+          ...group,
+          position: boxArea.center,
+          boxSize: boxArea.size
+        }
+      }
+      
+      // 박스 영역이 없으면 기본값
+      return {
+        ...group,
+        position: { x: 0, y: 0, z: 0 },
+        boxSize: { width: 0, height: 0, depth: 0 }
+      }
+    })
+    
+    setKeywordGroups(updatedKeywordGroups)
   }, [ideas])
 
   // 3D 좌표를 2D 화면 좌표로 변환 (카메라 회전/이동 적용)
@@ -598,9 +842,37 @@ const ConnectMapPage = () => {
       }).filter((item): item is NonNullable<typeof item> => item !== null)
         .sort((a, b) => a.avgZ - b.avgZ)
 
+      // 그라데이션 ID 카운터 (각 연결마다 고유한 그라데이션 생성)
+      let gradientIdCounter = 0
+
       connectionsWithProjection.forEach(({ conn, source2D, target2D }) => {
-        // 키워드 그룹 없이 기본 색상 사용 (color/gray/300)
-        const defaultColor = GRAY_COLORS['300'] || '#949494'
+        // 연결된 두 노드의 키워드 확인
+        const sourceNode = ideaNodes.find(n => n.id === conn.source.id)
+        const targetNode = ideaNodes.find(n => n.id === conn.target.id)
+        const sourceKeyword = sourceNode?.keyword || ''
+        const targetKeyword = targetNode?.keyword || ''
+        
+        // 키워드 색상 가져오기
+        const sourceColor = sourceKeyword && keywordColorMap.has(sourceKeyword)
+          ? keywordColorMap.get(sourceKeyword)!
+          : GRAY_COLORS['300'] || '#949494'
+        const targetColor = targetKeyword && keywordColorMap.has(targetKeyword)
+          ? keywordColorMap.get(targetKeyword)!
+          : GRAY_COLORS['300'] || '#949494'
+        
+        // 같은 키워드: 해당 키워드 색상 사용
+        // 다른 키워드: 그라데이션 사용
+        const isSameKeyword = sourceKeyword && targetKeyword && sourceKeyword === targetKeyword
+        let lineColor = sourceColor
+        let useGradient = false
+        let gradientId = ''
+        
+        if (!isSameKeyword && sourceKeyword && targetKeyword) {
+          // 다른 키워드끼리 연결: 그라데이션 사용
+          useGradient = true
+          gradientId = `gradient-${conn.source.id}-${conn.target.id}-${gradientIdCounter++}`
+        }
+
         const isHighlighted = hoveredIdea === conn.source.id || hoveredIdea === conn.target.id
 
         // 모든 연결을 동일하게 처리 (키워드 그룹 없음)
@@ -630,19 +902,46 @@ const ConnectMapPage = () => {
           // Cubic Bezier 곡선 사용 (더 부드럽고 자연스러운 곡선)
           const pathData = `M ${source2D.x} ${source2D.y} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${target2D.x} ${target2D.y}`
           
+          // 다른 키워드끼리 연결 시 그라데이션 생성 (path 방향에 맞춤)
+          if (useGradient) {
+            const defs = svg.querySelector('defs') || svg.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'defs'))
+          const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient')
+          gradient.setAttribute('id', gradientId)
+            // userSpaceOnUse로 설정하여 실제 좌표 사용
+          gradient.setAttribute('gradientUnits', 'userSpaceOnUse')
+          gradient.setAttribute('x1', String(source2D.x))
+          gradient.setAttribute('y1', String(source2D.y))
+          gradient.setAttribute('x2', String(target2D.x))
+          gradient.setAttribute('y2', String(target2D.y))
+          
+          const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop')
+          stop1.setAttribute('offset', '0%')
+            stop1.setAttribute('stop-color', sourceColor)
+          gradient.appendChild(stop1)
+          
+          const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop')
+          stop2.setAttribute('offset', '100%')
+            stop2.setAttribute('stop-color', targetColor)
+          gradient.appendChild(stop2)
+          
+          defs.appendChild(gradient)
+          }
+          
           // 연결 개수에 따라 두께 결정 (thick: 3개 이상, thin: 0-2개)
-          const sourceNode = ideaNodes.find(n => n.id === conn.source.id)
-          const targetNode = ideaNodes.find(n => n.id === conn.target.id)
           const sourceConnections = sourceNode?.connectionCount || 0
           const targetConnections = targetNode?.connectionCount || 0
           const avgConnections = (sourceConnections + targetConnections) / 2
           const lineSize = avgConnections >= 3 ? 'Thick' : 'thin'
           
-          // 레이어 1: color/gray/300 라인 (배경, opacity 50% / 하이라이트 시 80%)
+          // 레이어 1: 키워드 색상, 그라데이션 또는 기본 그레이 라인 (배경, opacity 50% / 하이라이트 시 80%)
           const colorPath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
           colorPath.setAttribute('d', pathData)
           colorPath.setAttribute('fill', 'none')
-          colorPath.setAttribute('stroke', defaultColor)
+          if (useGradient) {
+            colorPath.setAttribute('stroke', `url(#${gradientId})`)
+          } else {
+            colorPath.setAttribute('stroke', lineColor)
+          }
           const strokeWidth = lineSize === 'Thick' ? '15' : '7'
           const highlightedWidth = isHighlighted ? (lineSize === 'Thick' ? '18' : '9') : strokeWidth
           colorPath.setAttribute('stroke-width', String(highlightedWidth))
@@ -764,6 +1063,62 @@ const ConnectMapPage = () => {
 
   const handleZoomOut = () => {
     setTransform({ ...transform, scale: Math.max(transform.scale / 1.2, 0.5) })
+  }
+
+  // Gemini API를 사용하여 키워드 생성
+  const handleGenerateKeywords = async () => {
+    if (!ideas || ideas.length === 0) {
+      alert('키워드를 생성할 아이디어가 없습니다.')
+      return
+    }
+
+    if (isGeneratingKeywords) {
+      return
+    }
+
+    setIsGeneratingKeywords(true)
+
+    try {
+      // 키워드가 없는 아이디어들만 필터링 (선택사항: 모든 아이디어 사용)
+      const ideasToProcess = ideas.filter(idea => !idea.keywords || idea.keywords.length === 0)
+      
+      if (ideasToProcess.length < 3) {
+        alert('키워드를 생성하려면 최소 3개 이상의 아이디어가 필요합니다.')
+        setIsGeneratingKeywords(false)
+        return
+      }
+
+      // Gemini API를 통해 키워드 생성
+      const keywordGroups = await generateKeywordsWithGemini(ideasToProcess)
+
+      if (keywordGroups.length === 0) {
+        alert('생성된 키워드 그룹이 없습니다.')
+        setIsGeneratingKeywords(false)
+        return
+      }
+
+      // 데이터베이스에 키워드 업데이트
+      await updateKeywordsInDatabase(keywordGroups)
+
+      // 아이디어 다시 로드
+      const { data: updatedIdeas, error } = await supabase
+        .from('ideas')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      if (updatedIdeas) {
+        setIdeas(updatedIdeas)
+        alert(`성공적으로 ${keywordGroups.length}개의 키워드 그룹을 생성했습니다.`)
+      }
+    } catch (error) {
+      console.error('Error generating keywords:', error)
+      alert(`키워드 생성 중 오류가 발생했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsGeneratingKeywords(false)
+    }
   }
 
   const handleFitToScreen = () => {
@@ -930,10 +1285,173 @@ const ConnectMapPage = () => {
         <svg ref={svgRef} className="connections-svg" />
         
         <div className="map-3d-space">
-          {/* 키워드 그룹 없음 (Gemini로 추후 생성 예정) */}
+          {/* 키워드 그룹 육면체 프레임 */}
+          {keywordGroups
+            .filter(group => group.boxSize.width > 0 && group.boxSize.height > 0 && group.boxSize.depth > 0)
+            .map((group) => {
+              const projected = project3DTo2D(group.position.x, group.position.y, group.position.z)
+              const { width, height, depth } = group.boxSize
+              
+              // 육면체의 8개 꼭짓점 계산
+              const halfWidth = width / 2
+              const halfHeight = height / 2
+              const halfDepth = depth / 2
+              
+              const corners = [
+                { x: -halfWidth, y: -halfHeight, z: -halfDepth }, // 0: 왼쪽 아래 앞
+                { x: halfWidth, y: -halfHeight, z: -halfDepth },  // 1: 오른쪽 아래 앞
+                { x: halfWidth, y: halfHeight, z: -halfDepth },   // 2: 오른쪽 위 앞
+                { x: -halfWidth, y: halfHeight, z: -halfDepth }, // 3: 왼쪽 위 앞
+                { x: -halfWidth, y: -halfHeight, z: halfDepth }, // 4: 왼쪽 아래 뒤
+                { x: halfWidth, y: -halfHeight, z: halfDepth },  // 5: 오른쪽 아래 뒤
+                { x: halfWidth, y: halfHeight, z: halfDepth },   // 6: 오른쪽 위 뒤
+                { x: -halfWidth, y: halfHeight, z: halfDepth },  // 7: 왼쪽 위 뒤
+              ]
+              
+              // 각 꼭짓점을 3D 투영
+              const projectedCorners = corners.map(corner => {
+                const worldX = group.position.x + corner.x
+                const worldY = group.position.y + corner.y
+                const worldZ = group.position.z + corner.z
+                return project3DTo2D(worldX, worldY, worldZ)
+              })
+              
+              // 육면체의 6개 면 정의
+              const faces = [
+                { vertices: [0, 1, 2, 3], name: 'front' },   // 앞면
+                { vertices: [4, 5, 6, 7], name: 'back' },    // 뒷면
+                { vertices: [0, 1, 5, 4], name: 'bottom' },  // 아래면
+                { vertices: [2, 3, 7, 6], name: 'top' },      // 위면
+                { vertices: [0, 3, 7, 4], name: 'left' },    // 왼쪽면
+                { vertices: [1, 2, 6, 5], name: 'right' },   // 오른쪽면
+              ]
+              
+              // 육면체의 12개 모서리 (실선)
+              const edges = [
+                [0, 1], [1, 2], [2, 3], [3, 0], // 앞면
+                [4, 5], [5, 6], [6, 7], [7, 4], // 뒷면
+                [0, 4], [1, 5], [2, 6], [3, 7], // 연결선
+              ]
+              
+              // SVG viewBox 계산 (모든 꼭짓점을 포함하도록)
+              const allX = projectedCorners.map(c => c.x)
+              const allY = projectedCorners.map(c => c.y)
+              const minX = Math.min(...allX)
+              const maxX = Math.max(...allX)
+              const minY = Math.min(...allY)
+              const maxY = Math.max(...allY)
+              const svgWidth = maxX - minX + 100
+              const svgHeight = maxY - minY + 100
+              const svgX = minX - 50
+              const svgY = minY - 50
+
+            return (
+              <div 
+                  key={`keyword-box-${group.keyword}`}
+                  className="keyword-group-box"
+                style={{
+                  position: 'absolute',
+                    left: `${projected.x}px`,
+                    top: `${projected.y}px`,
+                    transform: `translate(-50%, -50%)`,
+                  pointerEvents: 'none',
+                    zIndex: Math.floor(projected.z * 10) + 50,
+                  }}
+                >
+                  <svg
+                    width={svgWidth}
+                    height={svgHeight}
+                    viewBox={`${svgX} ${svgY} ${svgWidth} ${svgHeight}`}
+                  style={{
+                    position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      overflow: 'visible',
+                    }}
+                  >
+                    {/* 면 채우기 (opacity 5%) */}
+                    {faces.map((face, faceIdx) => {
+                      const facePoints = face.vertices.map(idx => {
+                        const corner = projectedCorners[idx]
+                        return `${corner.x},${corner.y}`
+                      }).join(' ')
+                      
+                      return (
+                        <polygon
+                          key={`face-${faceIdx}`}
+                          points={facePoints}
+                          fill={group.color}
+                          fillOpacity="0.05"
+                          stroke="none"
+                        />
+                      )
+                    })}
+                    
+                    {/* 모서리 실선 (1px) */}
+                    {edges.map(([startIdx, endIdx], idx) => {
+                      const start = projectedCorners[startIdx]
+                      const end = projectedCorners[endIdx]
+                      return (
+                        <line
+                          key={`edge-${idx}`}
+                          x1={start.x}
+                          y1={start.y}
+                          x2={end.x}
+                          y2={end.y}
+                          stroke={group.color}
+                          strokeWidth="1"
+                          strokeOpacity="1"
+                        />
+                      )
+                    })}
+                  </svg>
+                  
+                  {/* 키워드 라벨 (육면체 위쪽 면 위에 배치) */}
+                  {(() => {
+                    // 위쪽 면(top face)의 중심점 계산 (꼭짓점: 2, 3, 7, 6)
+                    const topFaceCorners = [2, 3, 7, 6].map(idx => projectedCorners[idx])
+                    const topFaceCenterX = topFaceCorners.reduce((sum, c) => sum + c.x, 0) / topFaceCorners.length
+                    const topFaceCenterY = topFaceCorners.reduce((sum, c) => sum + c.y, 0) / topFaceCorners.length
+                    // 위쪽 면의 가장 위쪽 점 찾기 (Y가 가장 작은 값)
+                    const topMostY = Math.min(...topFaceCorners.map(c => c.y))
+                    
+                    return (
+                <div
+                  className="keyword-tag"
+                  style={{
+                    position: 'absolute',
+                          left: `${topFaceCenterX - projected.x}px`,
+                          top: `${topMostY - projected.y - 40}px`, // 육면체 위에 약간 떨어진 위치
+                          transform: 'translate(-50%, 0)',
+                    backgroundColor: group.color,
+                    color: GRAY_COLORS['800'] || '#1e1e1e',
+                          padding: '0 20px',
+                          height: '34px',
+                          fontSize: '20px',
+                          lineHeight: '16px',
+                          fontWeight: 400,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          whiteSpace: 'nowrap',
+                          textTransform: 'capitalize',
+                          fontFamily: "'Montserrat', 'Pretendard', sans-serif",
+                          letterSpacing: '0.6px',
+                          pointerEvents: 'none',
+                          zIndex: Math.floor(projected.z * 10) + 100, // 육면체보다 위에 표시
+                  }}
+                >
+                  {group.keyword}
+                </div>
+                    )
+                  })()}
+              </div>
+            )
+          })}
 
           {/* 아이디어 노드들 (z 순서대로 정렬, 부유 애니메이션) */}
-          {ideaNodes
+          {ideaNodes && ideaNodes.length > 0 ? ideaNodes
             .map(node => {
               const projected = project3DTo2D(node.position.x, node.position.y, node.position.z)
               const floatOffset = isDragging ? 0 : Math.sin(animationFrame * 0.01 + node.id.charCodeAt(0) * 0.1) * 3
@@ -994,15 +1512,19 @@ const ConnectMapPage = () => {
                     }
                   }}
                 >
-                  {/* 키워드 없는 Default 상태 노드 (Figma 디자인 참고) */}
+                  {/* 키워드에 따라 stroke 색상만 바뀌는 노드 */}
                       <div
                         className={`idea-node idea-node-${nodeSize}`}
                         style={{
+                          // 배경색은 항상 고정 (color/gray/100)
                           backgroundColor: GRAY_COLORS['100'] || '#dddddd',
                           color: GRAY_COLORS['800'] || '#1e1e1e',
-                      border: `2px solid ${GRAY_COLORS['300'] || '#949494'}`,
+                          // stroke 색상만 키워드에 따라 변경
+                          border: node.keyword && keywordColorMap.has(node.keyword)
+                            ? `2px solid ${keywordColorMap.get(node.keyword) || GRAY_COLORS['300'] || '#949494'}`
+                            : `2px solid ${GRAY_COLORS['300'] || '#949494'}`,
                         boxShadow: (isHovered || selectedIdea?.id === node.id)
-                        ? `0px 0px 10px rgba(0, 0, 0, 0.4)`
+                            ? `0px 0px 10px rgba(0, 0, 0, 0.4)`
                           : `0px 0px 10px rgba(0, 0, 0, 0.25)`,
                         WebkitFontSmoothing: 'antialiased',
                         MozOsxFontSmoothing: 'grayscale',
@@ -1020,7 +1542,18 @@ const ConnectMapPage = () => {
                     </div>
               </div>
             )
-          })}
+          }) : (
+            <div style={{ 
+              position: 'absolute', 
+              top: '50%', 
+              left: '50%', 
+              transform: 'translate(-50%, -50%)',
+              color: GRAY_COLORS['800'] || '#1e1e1e',
+              fontSize: '16px'
+            }}>
+              노드가 없습니다. 아이디어를 추가해주세요.
+            </div>
+          )}
         </div>
 
         {/* 컨트롤 버튼 */}
@@ -1047,6 +1580,29 @@ const ConnectMapPage = () => {
               <path d="M2 14L6.66667 9.33333" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M6 14H2V10" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
+        </button>
+          <button 
+            className="control-btn" 
+            onClick={handleGenerateKeywords} 
+            title="Generate Keywords with AI"
+            disabled={isGeneratingKeywords}
+            style={{ opacity: isGeneratingKeywords ? 0.5 : 1 }}
+          >
+            {isGeneratingKeywords ? (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="8" cy="8" r="6" stroke="#666666" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="9.42" strokeDashoffset="4.71">
+                  <animate attributeName="stroke-dasharray" values="9.42;28.27;9.42" dur="1.5s" repeatCount="indefinite"/>
+                  <animate attributeName="stroke-dashoffset" values="0;-18.85;0" dur="1.5s" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" shapeRendering="geometricPrecision">
+                <path d="M8 2V14" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2 8H14" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M11 5L8 8L5 5" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M11 11L8 8L5 11" stroke="#666666" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
         </button>
       </div>
 
