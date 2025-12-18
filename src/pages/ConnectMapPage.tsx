@@ -107,20 +107,32 @@ interface Connection {
 // 텍스트 유사도 계산 함수 (0 ~ 1 사이의 값)
 const calculateSimilarity = (idea1: Idea, idea2: Idea): number => {
   // 제목과 내용을 합쳐서 텍스트 준비
-  const text1 = `${idea1.title} ${idea1.content || ''}`.toLowerCase()
-  const text2 = `${idea2.title} ${idea2.content || ''}`.toLowerCase()
+  const text1 = `${idea1.title} ${idea1.content || ''}`
+  const text2 = `${idea2.title} ${idea2.content || ''}`
   
-  // 단어로 분리 (영문, 숫자만 추출, 중복 제거)
-  const words1 = new Set(text1.match(/[a-z0-9]+/g) || [])
-  const words2 = new Set(text2.match(/[a-z0-9]+/g) || [])
+  // 한국어와 영어 모두 처리
+  // 1. 한국어 단어 추출 (한글, 숫자, 영문 포함)
+  const koreanWordRegex = /[\uAC00-\uD7A3]+|[a-zA-Z0-9]+/g
   
-  // 공통 단어 계산
+  const words1 = new Set((text1.match(koreanWordRegex) || []).map(w => w.toLowerCase()))
+  const words2 = new Set((text2.match(koreanWordRegex) || []).map(w => w.toLowerCase()))
+  
+  // 2. 공통 단어 계산
   const commonWords = new Set([...words1].filter(word => words2.has(word)))
   
-  // Jaccard 유사도: 교집합 / 합집합
+  // 3. Jaccard 유사도: 교집합 / 합집합
   const union = new Set([...words1, ...words2])
   
-  if (union.size === 0) return 0
+  if (union.size === 0) {
+    // 단어가 없으면 문자 단위로 비교 (한국어 처리)
+    const chars1 = new Set(text1.replace(/\s/g, '').split(''))
+    const chars2 = new Set(text2.replace(/\s/g, '').split(''))
+    const commonChars = new Set([...chars1].filter(char => chars2.has(char)))
+    const unionChars = new Set([...chars1, ...chars2])
+    
+    if (unionChars.size === 0) return 0
+    return commonChars.size / unionChars.size
+  }
   
   return commonWords.size / union.size
 }
@@ -587,29 +599,36 @@ const ConnectMapPage = () => {
         .sort((a, b) => a.avgZ - b.avgZ)
 
       connectionsWithProjection.forEach(({ conn, source2D, target2D }) => {
-        // 키워드 그룹 없이 기본 색상 사용 (회색)
-        const defaultColor = GRAY_COLORS['500'] || '#666666'
+        // 키워드 그룹 없이 기본 색상 사용 (color/gray/300)
+        const defaultColor = GRAY_COLORS['300'] || '#949494'
         const isHighlighted = hoveredIdea === conn.source.id || hoveredIdea === conn.target.id
 
         // 모든 연결을 동일하게 처리 (키워드 그룹 없음)
         {
-          // 그라데이션 연결선
-          // 기본 색상 사용 (키워드 그룹 없음)
-
-          // 곡선 연결선 (베지어 곡선)
-          const midX = (source2D.x + target2D.x) / 2
-          const midY = (source2D.y + target2D.y) / 2
+          // 더 다이나믹한 곡선 연결선 (Cubic Bezier 곡선)
           const dx = target2D.x - source2D.x
           const dy = target2D.y - source2D.y
           const distance = Math.sqrt(dx * dx + dy * dy)
-          const curvature = distance * 0.3
+          
+          // 거리에 따라 곡률 조정 (더 긴 선은 더 큰 곡률, 더 다이나믹한 곡선)
+          const baseCurvature = Math.min(distance * 0.5, 250) // 곡률 증가 (0.4 -> 0.5, 최대 200 -> 250)
           const perpX = -dy / distance
           const perpY = dx / distance
-          const controlX = midX + perpX * curvature
-          const controlY = midY + perpY * curvature
+          
+          // 유사도에 따라 곡률 변동 추가 (더 유사한 노드는 더 직선에 가깝게)
+          const similarity = calculateSimilarity(conn.source, conn.target)
+          const curvatureVariation = (1 - similarity) * 0.3 // 유사도가 낮을수록 더 큰 곡률
+          const dynamicCurvature = baseCurvature * (1 + curvatureVariation)
+          
+          // 두 개의 제어점을 사용하여 더 부드럽고 다이나믹한 곡선 생성
+          // 제어점 위치를 다양하게 하여 더 자연스러운 곡선
+          const control1X = source2D.x + dx * 0.25 + perpX * dynamicCurvature * 0.7
+          const control1Y = source2D.y + dy * 0.25 + perpY * dynamicCurvature * 0.7
+          const control2X = source2D.x + dx * 0.75 + perpX * dynamicCurvature * 0.3
+          const control2Y = source2D.y + dy * 0.75 + perpY * dynamicCurvature * 0.3
 
-          // 다른 키워드 간 연결선도 두 레이어 구조로 (그라데이션 라인 + 점선)
-          const pathData = `M ${source2D.x} ${source2D.y} Q ${controlX} ${controlY} ${target2D.x} ${target2D.y}`
+          // Cubic Bezier 곡선 사용 (더 부드럽고 자연스러운 곡선)
+          const pathData = `M ${source2D.x} ${source2D.y} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${target2D.x} ${target2D.y}`
           
           // 연결 개수에 따라 두께 결정 (thick: 3개 이상, thin: 0-2개)
           const sourceNode = ideaNodes.find(n => n.id === conn.source.id)
@@ -619,7 +638,7 @@ const ConnectMapPage = () => {
           const avgConnections = (sourceConnections + targetConnections) / 2
           const lineSize = avgConnections >= 3 ? 'Thick' : 'thin'
           
-          // 레이어 1: 기본 색상 라인 (배경, opacity 50% / 하이라이트 시 80%)
+          // 레이어 1: color/gray/300 라인 (배경, opacity 50% / 하이라이트 시 80%)
           const colorPath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
           colorPath.setAttribute('d', pathData)
           colorPath.setAttribute('fill', 'none')
@@ -636,7 +655,7 @@ const ConnectMapPage = () => {
           }
           svg.appendChild(colorPath)
 
-          // 레이어 2: 점선 (dashline, dark gray / 하이라이트 시 더 진하게)
+          // 레이어 2: 점선 (dashline, dark gray / 하이라이트 시 더 진하게) - 애니메이션 추가
           const dashPath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
           dashPath.setAttribute('d', pathData)
           dashPath.setAttribute('fill', 'none')
@@ -645,9 +664,19 @@ const ConnectMapPage = () => {
           const highlightedDashWidth = isHighlighted ? (lineSize === 'Thick' ? '1.5' : '0.75') : dashWidth
           dashPath.setAttribute('stroke-width', String(highlightedDashWidth))
           dashPath.setAttribute('stroke-dasharray', '4,4') // 점선 패턴
+          dashPath.setAttribute('stroke-dashoffset', '0')
           dashPath.setAttribute('stroke-opacity', isHighlighted ? '1' : '1')
           dashPath.setAttribute('stroke-linecap', 'round')
           dashPath.setAttribute('stroke-linejoin', 'round')
+          
+          // 점선 흐르는 애니메이션 추가
+          const dashAnimation = document.createElementNS('http://www.w3.org/2000/svg', 'animate')
+          dashAnimation.setAttribute('attributeName', 'stroke-dashoffset')
+          dashAnimation.setAttribute('values', '0;8')
+          dashAnimation.setAttribute('dur', '1s')
+          dashAnimation.setAttribute('repeatCount', 'indefinite')
+          dashPath.appendChild(dashAnimation)
+          
           svg.appendChild(dashPath)
         }
       })
@@ -738,8 +767,142 @@ const ConnectMapPage = () => {
   }
 
   const handleFitToScreen = () => {
+    const container = containerRef.current
+    if (ideaNodes.length === 0 || !container) {
     setTransform({ x: 0, y: 0, scale: 1 })
-    setRotation({ x: -15, y: 25, z: 0 }) // 초기 회전 각도로 리셋
+      setRotation({ x: -15, y: 25, z: 0 })
+      return
+    }
+
+    // 초기 회전 각도로 설정
+    const initialRotation = { x: -15, y: 25, z: 0 }
+    setRotation(initialRotation)
+
+    // 임시로 초기 rotation으로 2D 투영 계산
+    const perspective = 2000
+    const radX = (-initialRotation.x * Math.PI) / 180
+    const radY = (-initialRotation.y * Math.PI) / 180
+
+    // 모든 노드의 2D 투영 범위 계산
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    let sumX = 0
+    let sumY = 0
+    let nodeCount = 0
+
+    // 노드 크기 추정 (텍스트 길이 기반)
+    const estimateNodeSize = (node: IdeaNode) => {
+      const textLength = node.title.length
+      const nodeSize = node.nodeSize || 'small'
+      
+      // 노드 크기에 따른 대략적인 크기 (텍스트 길이도 고려)
+      let baseWidth = 200 // 기본 너비
+      let baseHeight = 34 // 기본 높이
+      
+      if (nodeSize === 'big') {
+        baseWidth = Math.max(200, textLength * 12) // 텍스트 길이에 따라 조정
+        baseHeight = 34
+      } else if (nodeSize === 'mid') {
+        baseWidth = Math.max(150, textLength * 10)
+        baseHeight = 23
+      } else {
+        baseWidth = Math.max(154, textLength * 8)
+        baseHeight = 18
+      }
+      
+      return { width: baseWidth, height: baseHeight }
+    }
+
+    const centerX = container.clientWidth / 2
+    const centerY = container.clientHeight / 2
+
+    ideaNodes.forEach(node => {
+      // 3D 좌표를 2D로 투영 (scale=1, transform={0,0} 기준)
+      let rx = node.position.x
+      let ry = node.position.y * Math.cos(radX) - node.position.z * Math.sin(radX)
+      let rz = node.position.y * Math.sin(radX) + node.position.z * Math.cos(radX)
+
+      const finalX = rx * Math.cos(radY) - rz * Math.sin(radY)
+      const finalZ = rx * Math.sin(radY) + rz * Math.cos(radY)
+      const finalY = ry
+
+      const adjustedZ = finalZ + perspective
+      const factor = Math.max(0.2, Math.min(3, perspective / adjustedZ))
+
+      // scale=1, transform={0,0}일 때의 화면 좌표
+      const baseScreenX = centerX + finalX * factor
+      const baseScreenY = centerY + finalY * factor
+
+      // 노드의 실제 크기 추정
+      const nodeSize = estimateNodeSize(node)
+      const nodeHalfWidth = nodeSize.width / 2
+      const nodeHalfHeight = nodeSize.height / 2
+
+      // 노드의 경계를 고려한 범위 계산
+      minX = Math.min(minX, baseScreenX - nodeHalfWidth)
+      maxX = Math.max(maxX, baseScreenX + nodeHalfWidth)
+      minY = Math.min(minY, baseScreenY - nodeHalfHeight)
+      maxY = Math.max(maxY, baseScreenY + nodeHalfHeight)
+
+      // 중심점 계산을 위한 합계
+      sumX += baseScreenX
+      sumY += baseScreenY
+      nodeCount++
+    })
+
+    // 노드 범위에 충분한 여백 추가 (화면 가장자리 여유 공간)
+    const padding = Math.max(150, Math.min(container.clientWidth, container.clientHeight) * 0.1) // 화면 크기의 10% 또는 최소 150px
+    const nodeWidth = maxX - minX + padding * 2
+    const nodeHeight = maxY - minY + padding * 2
+
+    // 화면 크기 (실제 사용 가능한 영역)
+    const screenWidth = container.clientWidth
+    const screenHeight = container.clientHeight
+
+    // 적절한 scale 계산 (화면에 맞게, 약간 여유 있게)
+    const scaleX = (screenWidth * 0.95) / nodeWidth // 95% 사용 (여유 공간)
+    const scaleY = (screenHeight * 0.95) / nodeHeight
+    const optimalScale = Math.min(scaleX, scaleY, 1.5) // 최대 1.5배까지만 확대
+    const finalScale = Math.max(0.2, optimalScale) // 최소 0.2배
+
+    // 노드들의 중심점 계산 (scale=1, transform={0,0}일 때의 좌표)
+    // 실제 노드 중심점들의 평균 사용 (더 정확함)
+    const centerNodeX = nodeCount > 0 ? sumX / nodeCount : (minX + maxX) / 2
+    const centerNodeY = nodeCount > 0 ? sumY / nodeCount : (minY + maxY) / 2
+    const centerScreenX = screenWidth / 2
+    const centerScreenY = screenHeight / 2
+
+    // project3DTo2D 함수의 로직을 고려하여 transform 계산
+    // 최종 screenX = centerX + finalX * factor * scale + transform.x
+    // 목표: 최종 screenX = centerScreenX (화면 중앙)
+    // 
+    // centerNodeX는 baseScreenX들의 평균 = centerX + (평균 finalX * factor)
+    // 최종 screenX = centerX + (평균 finalX) * factor * finalScale + transform.x
+    // 목표: centerScreenX = centerX + (평균 finalX) * factor * finalScale + transform.x
+    // 
+    // centerNodeX = centerX + (평균 finalX) * factor 이므로:
+    // (평균 finalX) * factor = centerNodeX - centerX
+    // (평균 finalX) * factor * finalScale = (centerNodeX - centerX) * finalScale
+    // 
+    // 따라서: centerScreenX = centerX + (centerNodeX - centerX) * finalScale + transform.x
+    // transform.x = centerScreenX - centerX - (centerNodeX - centerX) * finalScale
+    // transform.x = centerScreenX - centerX * (1 - finalScale) - centerNodeX * finalScale
+    // 
+    // centerX = centerScreenX이므로:
+    // transform.x = centerScreenX - centerScreenX * (1 - finalScale) - centerNodeX * finalScale
+    // transform.x = centerScreenX * finalScale - centerNodeX * finalScale
+    // transform.x = (centerScreenX - centerNodeX) * finalScale
+
+    const offsetX = (centerScreenX - centerNodeX) * finalScale
+    const offsetY = (centerScreenY - centerNodeY) * finalScale
+
+    setTransform({ 
+      x: offsetX, 
+      y: offsetY, 
+      scale: finalScale
+    })
   }
 
   // 3D 육면체 컴포넌트 - 각 면을 3D 투영으로 렌더링 (현재 사용 안 함 - 키워드 그룹 없음)
